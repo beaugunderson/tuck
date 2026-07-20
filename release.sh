@@ -22,8 +22,10 @@ echo "==> Building $APP $VERSION"
 TUCK_VERSION="$VERSION" ./build.sh
 
 # Refuse to ship an ad-hoc-signed bundle (notarization would fail anyway, and it
-# would lose the stable TCC identity).
-if ! codesign -dvv "$BUNDLE" 2>&1 | grep -q "Authority=Developer ID Application"; then
+# would lose the stable TCC identity). Capture first rather than piping into
+# grep -q, which would SIGPIPE codesign and trip pipefail.
+SIGINFO="$(codesign -dvv "$BUNDLE" 2>&1 || true)"
+if ! grep -q "Authority=Developer ID Application" <<<"$SIGINFO"; then
   echo "ERROR: $BUNDLE is not Developer ID signed. Aborting." >&2
   exit 1
 fi
@@ -32,7 +34,16 @@ echo "==> Zipping for notarization"
 /usr/bin/ditto -c -k --keepParent "$BUNDLE" "$ZIP"
 
 echo "==> Submitting to Apple notary service (waits for result)"
-xcrun notarytool submit "$ZIP" --keychain-profile "$PROFILE" --wait
+if [ -n "${APPLE_APP_PASSWORD:-}" ]; then
+  # CI / non-interactive: explicit credentials from the environment.
+  xcrun notarytool submit "$ZIP" \
+    --apple-id "${APPLE_ID:?APPLE_ID required alongside APPLE_APP_PASSWORD}" \
+    --team-id "${APPLE_TEAM_ID:?APPLE_TEAM_ID required alongside APPLE_APP_PASSWORD}" \
+    --password "$APPLE_APP_PASSWORD" --wait
+else
+  # Local: credentials stored in the keychain profile (see header).
+  xcrun notarytool submit "$ZIP" --keychain-profile "$PROFILE" --wait
+fi
 
 echo "==> Stapling the ticket into the app"
 xcrun stapler staple "$BUNDLE"
@@ -47,6 +58,7 @@ gh release create "$TAG" "$ZIP" \
   --title "$APP $VERSION" \
   --notes "Tuck $VERSION — a tiny, performance-obsessed menu bar manager for macOS."
 
-echo "==> sha256 (for the Homebrew cask):"
-shasum -a 256 "$ZIP" | awk '{print $1}'
+SHA="$(shasum -a 256 "$ZIP" | awk '{print $1}')"
+echo "$SHA" > "build/${APP}-${VERSION}.sha256"
+echo "==> sha256 (for the Homebrew cask): $SHA"
 echo "==> Done. Release: https://github.com/beaugunderson/tuck/releases/tag/$TAG"

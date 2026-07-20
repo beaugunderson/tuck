@@ -1,0 +1,62 @@
+name: release
+
+# Push a version tag (e.g. `git tag v0.2.0 && git push --tags`) and this builds,
+# Developer-ID signs, notarizes + staples, publishes a GitHub release, and bumps
+# the Homebrew cask in beaugunderson/homebrew-tap.
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Import Developer ID signing certificate
+        env:
+          CERT_P12_BASE64: ${{ secrets.DEVELOPER_ID_CERT_P12_BASE64 }}
+          CERT_PASSWORD: ${{ secrets.DEVELOPER_ID_CERT_PASSWORD }}
+        run: |
+          KEYCHAIN=build.keychain
+          KEYCHAIN_PW=$(uuidgen)
+          echo "$CERT_P12_BASE64" | base64 --decode > /tmp/devid.p12
+          security create-keychain -p "$KEYCHAIN_PW" "$KEYCHAIN"
+          security set-keychain-settings -lut 3600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PW" "$KEYCHAIN"
+          security import /tmp/devid.p12 -k "$KEYCHAIN" -P "$CERT_PASSWORD" -T /usr/bin/codesign
+          security list-keychains -d user -s "$KEYCHAIN" login.keychain-db
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PW" "$KEYCHAIN"
+          rm -f /tmp/devid.p12
+          security find-identity -v -p codesigning "$KEYCHAIN"
+
+      - name: Build, notarize, staple, publish release
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          ./release.sh "$VERSION"
+
+      - name: Bump Homebrew cask
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          SHA="$(cat "build/Tuck-${VERSION}.sha256")"
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/beaugunderson/homebrew-tap.git" tap
+          cd tap
+          sed -i '' -E "s/^  version \"[^\"]+\"/  version \"${VERSION}\"/" Casks/tuck.rb
+          sed -i '' -E "s/^  sha256 \"[^\"]+\"/  sha256 \"${SHA}\"/" Casks/tuck.rb
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Casks/tuck.rb
+          git commit -m "Update Tuck cask to ${VERSION}"
+          git push
