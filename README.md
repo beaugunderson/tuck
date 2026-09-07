@@ -9,11 +9,12 @@ A tiny, performance-obsessed menu bar manager for macOS — a lightweight Barten
 - Click a hidden icon and it opens: Tuck briefly slides it on-screen, clicks it so its own menu opens, then slides it back (synthetic-CGEvent technique ported from Ice).
 - Right-click the chevron for options: a checklist to show/hide each icon (no dragging needed), plus Show All, Launch at Login, and help.
 - ⌘-drag any icon to the left of Tuck's divider to hide it, right to keep it visible (native macOS gesture).
-- Items you mark "shown always" are remembered and restored — a menu bar icon that vanishes and reappears (e.g. a SwiftBar plugin that goes quiet) is nudged back to where you put it.
+- Checklist choices are remembered and restored — a menu bar icon that vanishes and reappears (e.g. a SwiftBar plugin that goes quiet) is nudged back to where you put it.
+- **Per-screen presets.** Choices are kept per menu bar width, so the notched laptop bar and a wide external monitor each have their own set of hidden icons. Docking or undocking switches presets automatically; a screen width you have never used starts as a copy of the previous one. The checklist header names the screen you are editing.
 
 ## Why it's fast
 
-Design tenet: **near-zero idle work.** No always-on event tap, no mouse tracking; nothing runs until you click. The only recurring work is a lightweight poll that exists solely while items are pinned, restoring them if they respawn. Measured idle: **~0% CPU / ~14 MB**, vs Ice's 1.5–2.6% / 44 MB (Ice keeps a global mouse-tracking event tap alive).
+Design tenet: **near-zero idle work.** No always-on event tap, no mouse tracking; nothing runs until you click. The only recurring work is a lightweight poll that exists solely while the active preset has entries, moving items back if they respawn on the wrong side. Screen changes arrive as a notification, not a poll. Measured idle: **~0% CPU / ~14 MB**, vs Ice's 1.5–2.6% / 44 MB (Ice keeps a global mouse-tracking event tap alive).
 
 ## Techniques
 

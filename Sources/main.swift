@@ -4,9 +4,31 @@ import ServiceManagement
 
 // Tuck — a tiny, performance-obsessed Bartender replacement.
 //
-// Zero idle work: no timers, no polling, no always-on event tap. Everything
-// happens on an explicit click. Left-click the chevron for a horizontal strip
-// of hidden glyphs (click one to open it); right-click for options.
+// Near-zero idle work: no always-on event tap, no mouse tracking. Everything
+// is click-driven except one 5s poll that exists only while a preset has
+// entries. Left-click the chevron for a horizontal strip of hidden glyphs
+// (click one to open it); right-click for options.
+
+/// The user's shown/hidden decisions for one menu bar width. Keyed by
+/// `MenuBarItemInfo` (namespace:title) — stable for real apps and for SwiftBar
+/// plugins (whose window title is the plugin filename). Items with no entry are
+/// left wherever they sit.
+struct ScreenPreset: Codable {
+    var shown: Set<MenuBarItemInfo> = []
+    var hidden: Set<MenuBarItemInfo> = []
+
+    var isEmpty: Bool { shown.isEmpty && hidden.isEmpty }
+
+    mutating func set(_ info: MenuBarItemInfo, shown isShown: Bool) {
+        if isShown {
+            hidden.remove(info)
+            shown.insert(info)
+        } else {
+            shown.remove(info)
+            hidden.insert(info)
+        }
+    }
+}
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -18,24 +40,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private let defaults = UserDefaults.standard
     private let revealKey = "revealInBar"
-    private let pinnedKey = "pinnedItems"
+    private let presetsKey = "screenPresets"
+    private let legacyPinnedKey = "pinnedItems"
 
-    /// Items the user has marked "shown always" via the checklist. Persisted by
-    /// `info` (namespace:title) — stable for real apps and for SwiftBar plugins
-    /// (whose window title is the plugin filename). A pinned item that vanishes
-    /// and respawns in the hidden zone (e.g. a SwiftBar plugin that goes
-    /// null-output) gets dragged back across the separator by `reassertPinned`.
-    private var pinnedItems: Set<MenuBarItemInfo> = []
+    /// One preset per menu bar width (see `screenKey`), so the laptop's notched
+    /// bar and a wide external monitor each keep their own set of hidden icons.
+    /// The checklist edits the preset for the screen the menu bar is on right now.
+    private var presets: [String: ScreenPreset] = [:]
+    private var activeKey = ""
+    private var activePreset: ScreenPreset {
+        get { presets[activeKey] ?? ScreenPreset() }
+        set { presets[activeKey] = newValue }
+    }
 
-    /// A lightweight poll that restores pinned items after they respawn hidden.
+    /// A lightweight poll that reconciles the bar with the active preset: it
+    /// restores a shown item after it respawns hidden (SwiftBar plugins that go
+    /// null-output and return) and re-hides one that came back on the wrong side.
     /// macOS emits no Accessibility event when a status item is *added* (only on
     /// removal), so there's nothing to hang an event-driven restore on — a poll is
-    /// the only way to notice the item is back. It runs only while something is
-    /// pinned; each tick is a sub-ms window enumeration that moves nothing unless a
-    /// pin is actually sitting hidden.
-    private var pinPollTimer: Timer?
-    private let pinPollInterval: TimeInterval = 5
-    private var isReasserting = false
+    /// the only way to notice the item is back. It runs only while the active
+    /// preset has entries; each tick is a sub-ms window enumeration that moves
+    /// nothing unless an item is actually on the wrong side.
+    private var pollTimer: Timer?
+    private let pollInterval: TimeInterval = 5
+    private var isReconciling = false
+
+    /// Docking fires `didChangeScreenParameters` several times while the menu bar
+    /// re-lays out; the key is re-read once things settle.
+    private var screenChangeWork: DispatchWorkItem?
+    private let screenChangeSettle: TimeInterval = 1.5
 
     private let itemManager = ItemManager()
     private let iceBar = IceBar()
@@ -62,8 +95,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         applyReveal()
-        loadPinned()
-        updatePinPolling()
+        loadPresets()
+        activeKey = screenKey()
+        updatePolling()
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(screenParametersChanged),
+            name: NSApplication.didChangeScreenParametersNotification, object: nil
+        )
 
         if !AXIsProcessTrusted() {
             _ = AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeUnretainedValue(): true] as CFDictionary)
@@ -121,55 +159,111 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    // MARK: - Pinned "shown always" items
+    // MARK: - Screen presets
 
-    private func loadPinned() {
-        guard
-            let data = defaults.data(forKey: pinnedKey),
-            let stored = try? JSONDecoder().decode([MenuBarItemInfo].self, from: data)
-        else { return }
-        pinnedItems = Set(stored)
+    /// The screen Tuck's own status item is drawn on, i.e. the menu bar we manage.
+    private func menuBarScreen() -> NSScreen? {
+        separatorItem.button?.window?.screen ?? NSScreen.screens.first
     }
 
-    private func savePinned() {
-        guard let data = try? JSONEncoder().encode(Array(pinnedItems)) else { return }
-        defaults.set(data, forKey: pinnedKey)
+    /// Presets vary by available real estate, so the key is the menu bar's width
+    /// in points plus a notch marker: two monitors of the same width share a
+    /// preset, and the notched laptop bar (two ~770pt strips) never masquerades
+    /// as a 1728pt external display. Falls back to the last key when no screen
+    /// is attached (e.g. mid-dock).
+    private func screenKey() -> String {
+        guard let screen = menuBarScreen() else { return activeKey }
+        let width = Int(screen.frame.width.rounded())
+        let notch = screen.auxiliaryTopLeftArea != nil ? "n" : ""
+        return "\(width)\(notch)"
     }
 
-    /// Runs the restore poll only while something is pinned — no pins, no timer, so
-    /// the idle cost is unchanged from before this feature existed.
-    private func updatePinPolling() {
-        if pinnedItems.isEmpty {
-            pinPollTimer?.invalidate()
-            pinPollTimer = nil
-        } else if pinPollTimer == nil {
-            pinPollTimer = Timer.scheduledTimer(withTimeInterval: pinPollInterval, repeats: true) { [weak self] _ in
-                Task { @MainActor in await self?.reassertPinned() }
+    private func loadPresets() {
+        if let data = defaults.data(forKey: presetsKey),
+           let stored = try? JSONDecoder().decode([String: ScreenPreset].self, from: data) {
+            presets = stored
+            return
+        }
+        // Single-preset install: its pinned set becomes this screen's shown set.
+        if let data = defaults.data(forKey: legacyPinnedKey),
+           let pinned = try? JSONDecoder().decode([MenuBarItemInfo].self, from: data) {
+            presets[screenKey()] = ScreenPreset(shown: Set(pinned))
+            defaults.removeObject(forKey: legacyPinnedKey)
+            savePresets()
+        }
+    }
+
+    private func savePresets() {
+        guard let data = try? JSONEncoder().encode(presets) else { return }
+        defaults.set(data, forKey: presetsKey)
+    }
+
+    @objc private func screenParametersChanged(_ note: Notification) {
+        screenChangeWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            MainActor.assumeIsolated { self.activateScreen() }
+        }
+        screenChangeWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + screenChangeSettle, execute: work)
+    }
+
+    /// Switches to the preset for the screen the menu bar is on now. A width
+    /// never seen before starts as a copy of the outgoing preset, so nothing
+    /// moves until the user edits it; from then on the two diverge.
+    private func activateScreen() {
+        let key = screenKey()
+        if key != activeKey {
+            if presets[key] == nil, let outgoing = presets[activeKey] {
+                presets[key] = outgoing
+                savePresets()
+            }
+            activeKey = key
+            updatePolling()
+        }
+        Task { await reconcile() }
+    }
+
+    /// Runs the reconcile poll only while the active preset has entries — an
+    /// empty preset means no timer, so the idle cost stays at zero.
+    private func updatePolling() {
+        if activePreset.isEmpty {
+            pollTimer?.invalidate()
+            pollTimer = nil
+        } else if pollTimer == nil {
+            pollTimer = Timer.scheduledTimer(withTimeInterval: pollInterval, repeats: true) { [weak self] _ in
+                Task { @MainActor in await self?.reconcile() }
             }
         }
     }
 
-    /// Drags any pinned item that's currently sitting in the hidden zone back to
-    /// the right of the separator. Only touches items whose `info` maps to exactly
-    /// one live, non-placeholder window — Control Center's many identical "Item-N"
-    /// titles are ambiguous, so we never risk grabbing the wrong one.
-    private func reassertPinned() async {
-        guard !isReasserting, !pinnedItems.isEmpty, AXIsProcessTrusted() else { return }
-        isReasserting = true
-        defer { isReasserting = false }
-        let all = MenuBarItem.getMenuBarItems(onScreenOnly: false, activeSpaceOnly: true)
-        guard let separator = separatorModel(in: all) else { return }
-        for info in pinnedItems {
+    /// Drags every item that sits on the wrong side of the separator for the
+    /// active preset across it, one at a time so macOS never overflow-drops.
+    /// Only touches items whose `info` maps to exactly one live, non-placeholder
+    /// window — Control Center's many identical "Item-N" titles are ambiguous, so
+    /// we never risk grabbing the wrong one. The idle tick is a single window
+    /// enumeration; items are re-enumerated only after a move, since every move
+    /// shifts the separator.
+    private func reconcile() async {
+        let preset = activePreset
+        guard !isReconciling, !preset.isEmpty, AXIsProcessTrusted() else { return }
+        isReconciling = true
+        defer { isReconciling = false }
+        let decisions = preset.shown.map { ($0, true) } + preset.hidden.map { ($0, false) }
+        var all = MenuBarItem.getMenuBarItems(onScreenOnly: false, activeSpaceOnly: true)
+        for (info, wantShown) in decisions {
             guard !isPlaceholderName(info.title) else { continue }
+            guard let separator = separatorModel(in: all), separator.frame.width > 0 else { return }
             let matches = all.filter { $0.info == info }
             guard matches.count == 1 else { continue }
             let item = matches[0]
-            guard item.isMovable, !isShownAlways(item, separator: separator) else { continue }
+            guard item.isMovable, isShownAlways(item, separator: separator) != wantShown else { continue }
             do {
-                try await itemManager.slowMove(item: item, to: .rightOfItem(separator))
+                try await itemManager.slowMove(item: item, to: wantShown ? .rightOfItem(separator) : .leftOfItem(separator))
             } catch {
-                NSLog("Tuck: reassert pinned failed for \(item.displayName): \(error)")
+                NSLog("Tuck: reconcile failed for \(item.displayName): \(error)")
             }
+            all = MenuBarItem.getMenuBarItems(onScreenOnly: false, activeSpaceOnly: true)
         }
     }
 
@@ -208,7 +302,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Glyph capture (composite, Ice's createImages approach)
 
     private func captureGlyphs(for items: [MenuBarItem]) -> [CGWindowID: NSImage] {
-        guard let screen = NSScreen.main else { return [:] }
+        guard let screen = menuBarScreen() else { return [:] }
         let scale = screen.backingScaleFactor
 
         var frames: [CGWindowID: CGRect] = [:]
@@ -317,7 +411,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let glyphs = captureGlyphs(for: manageable)
         let names = resolveAppNames(for: manageable) // fills in placeholder titles; owner attribution is "Control Center" for all
-        menu.addItem(.sectionHeader(title: "Menu Bar Icons"))
+        menu.addItem(.sectionHeader(title: "Menu Bar Icons · \(presetLabel())"))
         for item in manageable {
             // Prefer displayName (it already names Control Center's own items:
             // Wi-Fi, Battery, Focus…). Fall back to the AX-resolved owner only
@@ -335,6 +429,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             menu.addItem(mi)
         }
         menu.addItem(.separator())
+    }
+
+    /// Names the preset being edited, e.g. "MacBook Pro, 1728pt" — so the user
+    /// can tell which screen's set of icons a checklist toggle will change.
+    private func presetLabel() -> String {
+        guard let screen = menuBarScreen() else { return activeKey }
+        return "\(screen.localizedName), \(Int(screen.frame.width.rounded()))pt"
     }
 
     /// A copy of an item's glyph/icon scaled to a menu-appropriate height.
@@ -361,16 +462,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let destination: ItemManager.MoveDestination =
             willShow ? .rightOfItem(separator) : .leftOfItem(separator)
 
-        // Persist the intent so it survives the item vanishing and respawning.
-        // Only pin real (non-placeholder) titles; ambiguous ones can't be
-        // re-matched safely later anyway.
-        if willShow {
-            if !isPlaceholderName(item.info.title) { pinnedItems.insert(item.info) }
-        } else {
-            pinnedItems.remove(item.info)
+        // Record the decision in this screen's preset so it survives the item
+        // vanishing and respawning, and so it comes back when this screen does.
+        // Only real (non-placeholder) titles; ambiguous ones can't be re-matched
+        // safely later anyway.
+        if !isPlaceholderName(item.info.title) {
+            activePreset.set(item.info, shown: willShow)
+            savePresets()
+            updatePolling()
         }
-        savePinned()
-        updatePinPolling()
 
         Task {
             do {
