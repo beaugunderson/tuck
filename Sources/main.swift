@@ -72,17 +72,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private let itemManager = ItemManager()
     private let iceBar = IceBar()
+    private var chevron: Chevron?
     private var currentHidden: [MenuBarItem] = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         toggleItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         toggleItem.autosaveName = "tuck.toggle"
         if let button = toggleItem.button {
-            button.image = chevronImage()
+            chevron = Chevron { [weak button] image in button?.image = image }
             button.toolTip = "Tuck — click to see hidden menu bar icons"
+            button.setAccessibilityValue("Collapsed")
             button.target = self
             button.action = #selector(chevronClicked(_:))
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
+        }
+
+        iceBar.onVisibilityChange = { [weak self] isOpen in
+            guard let self else { return }
+            chevron?.setExpanded(isOpen)
+            toggleItem.button?.toolTip = isOpen
+                ? "Tuck — click to hide the icon strip"
+                : "Tuck — click to see hidden menu bar icons"
+            toggleItem.button?.setAccessibilityValue(isOpen ? "Expanded" : "Collapsed")
         }
 
         separatorItem = NSStatusBar.system.statusItem(withLength: expandedWidth)
@@ -119,22 +130,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func applyReveal() {
         separatorItem.length = revealInBar ? expandedWidth : collapsedWidth
         separatorItem.button?.image = revealInBar ? dividerImage() : nil
-    }
-
-    /// The chevron glyph with horizontal padding baked into the image, so the
-    /// status item reads as a visual divider and gives a bigger click target.
-    private func chevronImage() -> NSImage? {
-        let config = NSImage.SymbolConfiguration(pointSize: 13, weight: .semibold)
-        guard let glyph = NSImage(systemSymbolName: "chevron.left", accessibilityDescription: "Hidden menu bar icons")?
-            .withSymbolConfiguration(config)
-        else { return nil }
-        let pad: CGFloat = 5
-        let padded = NSImage(size: NSSize(width: glyph.size.width + pad * 2, height: glyph.size.height))
-        padded.lockFocus()
-        glyph.draw(at: NSPoint(x: pad, y: 0), from: .zero, operation: .sourceOver, fraction: 1)
-        padded.unlockFocus()
-        padded.isTemplate = true
-        return padded
     }
 
     private func dividerImage() -> NSImage {

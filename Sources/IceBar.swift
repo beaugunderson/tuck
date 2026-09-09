@@ -19,6 +19,10 @@ final class IceBar {
     /// Called with the tapped entry's index.
     var onSelect: ((Int) -> Void)?
 
+    /// Emitted only after an actual open/close, including selection, outside
+    /// clicks, Escape, and programmatic dismissal. Debounced opens emit nothing.
+    var onVisibilityChange: ((Bool) -> Void)?
+
     var isOpen: Bool { panel != nil }
 
     func toggle(_ entries: [BarEntry], below button: NSStatusBarButton) {
@@ -33,6 +37,7 @@ final class IceBar {
     }
 
     func hide() {
+        let wasOpen = isOpen
         if let globalMonitor { NSEvent.removeMonitor(globalMonitor) }
         if let localMonitor { NSEvent.removeMonitor(localMonitor) }
         globalMonitor = nil
@@ -40,6 +45,7 @@ final class IceBar {
         panel?.orderOut(nil)
         panel = nil
         lastHiddenAt = Date()
+        if wasOpen { onVisibilityChange?(false) }
     }
 
     private func show(_ entries: [BarEntry], below button: NSStatusBarButton) {
@@ -81,6 +87,7 @@ final class IceBar {
         panel.setFrameOrigin(NSPoint(x: x, y: y))
         panel.orderFrontRegardless()
         self.panel = panel
+        onVisibilityChange?(true)
 
         // Dismiss on any click outside, or Escape.
         globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in

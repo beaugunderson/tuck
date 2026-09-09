@@ -6,7 +6,7 @@ A tiny, performance-obsessed menu bar manager for macOS — a lightweight Barten
 
 ## What it does today
 
-- Click Tuck's chevron for a panel listing **every hidden menu bar icon** — including ones the notch pushed off the bar — read from the Accessibility tree.
+- Click Tuck's chevron for a panel listing **every hidden menu bar icon** — including ones the notch pushed off the bar — read from the Accessibility tree. The chevron rotates down while the strip is open and back left when it closes; Reduce Motion is respected.
 - Each icon shows its **real rendered menu-bar glyph** (Wi-Fi, battery, Dropbox, SwiftBar's live text, Dato's date…), captured in one composite pass.
 - The strip samples the menu bar’s background color when opened, keeping white glyphs readable even with light-mode apps and a dark or colorful wallpaper. Original glyph colors are preserved.
 - Click a hidden icon and it opens: Tuck briefly slides it on-screen, clicks it so its own menu opens, then slides it back (synthetic-CGEvent technique ported from Ice).
@@ -22,6 +22,10 @@ Design tenet: **near-zero idle work.** No always-on event tap, no mouse tracking
 ## Techniques
 
 Menu bar item enumeration and capture use private SkyLight window APIs bound via `@_silgen_name`, plus the (SDK-obsoleted but still-shipping) `CGWindowListCreateImage` bound the same way. The reliable click/move machinery is ported from Ice (jordanbaird/Ice, GPLv3). Tuck is GPLv3.
+
+## Thanks, Ice
+
+Tuck’s core menu bar clicking and moving code is adapted from **[Ice](https://github.com/jordanbaird/Ice)**, by **[Jordan Baird](https://github.com/jordanbaird)** and its contributors. Ice’s capture approach and Ice Bar also helped make Tuck’s hidden-icon strip possible. Both projects are GPLv3; upstream source headers and license notices are retained.
 
 ## Permissions
 
@@ -51,7 +55,7 @@ Requires **macOS 15+**, on **Apple silicon or Intel**. `build.sh` cross-compiles
 
 ## Tests
 
-Run `bash Tests/run.sh` for background-color and sampling-geometry checks compiled for both architectures. It executes each supported architecture (including x86_64 under Rosetta when available) and reports any runtime skips. After `./build.sh`, run `bash Tests/check-bundle.sh` to verify both slices, deployment targets, bundle metadata, and signatures. The release pipeline runs both checks. See `Tests/Manual.md` for permission and appearance checks that require a running app and macOS privacy settings.
+Run `bash Tests/run.sh` for background-color, sampling-geometry, and chevron animation checks compiled for both architectures. It executes each supported architecture (including x86_64 under Rosetta when available) and reports any runtime skips. After `./build.sh`, run `bash Tests/check-bundle.sh` to verify both slices, deployment targets, bundle metadata, and signatures. The release pipeline runs both checks. See `Tests/Manual.md` for permission and appearance checks that require a running app and macOS privacy settings.
 
 ## Website
 

@@ -26,6 +26,11 @@ async (page) => {
     ),
     "Free forever promise",
   );
+  check(
+    await page.locator('.credits a[href="https://github.com/jordanbaird/Ice"]').count() === 2 &&
+      (await page.locator('.credits').innerText()).includes('clicking and moving code is adapted from'),
+    'Prominent Ice credit explains the ported core and links upstream',
+  );
   check(await page.locator("#demo-tray").isHidden(), "Demo starts tucked");
   await page.getByRole("button", { name: "Show hidden icons in demo" }).click();
   check(await page.locator("#demo-tray").isVisible(), "Click reveals the tray");

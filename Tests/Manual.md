@@ -19,5 +19,8 @@ These require a running, signed Tuck app. Do not reset a user's TCC grants just 
 - Change wallpaper/Space or light/dark mode, then reopen: the color should be sampled anew, without restarting Tuck.
 - Move to a secondary display (including one positioned above or left of the primary, and mixed Retina/non-Retina displays). Expect the color of that display's menu bar and correct positioning.
 - If the menu bar background window cannot be captured, check the material fallback uses the status button's appearance.
-- Verify icon selection, outside-click/Escape dismissal, and chevron close/debounce behavior are unchanged.
+- Open the strip: the chevron should smoothly rotate from left to down without shifting neighboring icons. Close via chevron, outside click, Escape, selecting an icon, or opening the right-click options menu: it should return left every time.
+- Dismiss quickly during the opening animation: it should reverse smoothly and finish left. The 0.25s close/debounce should not briefly point down on a suppressed reopen.
+- With macOS Reduce Motion enabled, the chevron should change direction immediately, without animation. Check template tint in both light and dark menu bars.
+- Verify icon selection and outside-click/Escape dismissal are unchanged.
 - Leave the strip closed: no additional timers, screen capture, or idle CPU activity should occur.

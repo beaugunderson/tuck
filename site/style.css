@@ -591,6 +591,40 @@ svg {
 .promise a:hover {
   text-decoration: underline;
 }
+.credits {
+  max-width: 680px;
+  margin: 49px auto 0;
+  padding-bottom: 35px;
+  text-align: center;
+}
+.credits .eyebrow {
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 1px;
+  margin-bottom: 14px;
+}
+.credits h2 {
+  font: 400 30px/1.25 var(--serif);
+  letter-spacing: -0.5px;
+  margin: 0 0 15px;
+}
+.credits h2 a {
+  color: var(--orange);
+  text-decoration-thickness: 1px;
+}
+.credits h2 a span {
+  display: inline-block;
+  font: 18px var(--sans);
+}
+.credits p:not(.eyebrow) {
+  font-size: 13px;
+  line-height: 1.85;
+  color: var(--muted);
+  margin: 10px 0 0;
+}
+.credits p.credits-license {
+  font-size: 11px;
+}
 footer {
   display: flex;
   justify-content: space-between;
