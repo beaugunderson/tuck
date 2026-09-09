@@ -10,9 +10,31 @@ function setTray(open) {
   tray.hidden = !open;
 }
 
+const logoMenu = document.querySelector(".brand-menu");
+const logoToggle = logoMenu.querySelector("summary");
+
+// Native <details> handles click, tap, and keyboard even without JavaScript.
+// Mouse hover is an extra way to find it, not the only way to use it.
+logoMenu.addEventListener("pointerenter", (event) => {
+  if (event.pointerType === "mouse") logoMenu.open = true;
+});
+logoMenu.addEventListener("pointerleave", () => {
+  if (!logoMenu.contains(document.activeElement)) logoMenu.open = false;
+});
+logoMenu.addEventListener("focusout", (event) => {
+  if (!logoMenu.contains(event.relatedTarget)) logoMenu.open = false;
+});
+document.addEventListener("pointerdown", (event) => {
+  if (!logoMenu.contains(event.target)) logoMenu.open = false;
+});
+
 toggle.addEventListener("click", () => setTray(tray.hidden));
 document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape" && !tray.hidden) {
+  if (event.key !== "Escape") return;
+  if (logoMenu.open) {
+    logoMenu.open = false;
+    logoToggle.focus();
+  } else if (!tray.hidden) {
     setTray(false);
     toggle.focus();
   }
@@ -33,7 +55,7 @@ copy.addEventListener("click", async () => {
   const status = document.querySelector("#copy-status");
   try {
     await navigator.clipboard.writeText(command.textContent);
-    status.textContent = "Copied. Your terminal awaits.";
+    status.textContent = "Copied.";
   } catch {
     // Leave a useful selection if clipboard permission is denied.
     const range = document.createRange();
@@ -41,6 +63,6 @@ copy.addEventListener("click", async () => {
     const selection = window.getSelection();
     selection.removeAllRanges();
     selection.addRange(range);
-    status.textContent = "Select the command and press ⌘C (or Ctrl+C) to copy.";
+    status.textContent = "Press ⌘C (or Ctrl+C) to copy.";
   }
 });

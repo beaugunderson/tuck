@@ -21,11 +21,39 @@ async (page) => {
     "Both download links use the latest-release redirect",
   );
   check(
-    (await page.locator(".promise").innerText()).includes(
-      "Tuck will always be free",
-    ),
-    "Free forever promise",
+    (await page.locator('body').innerText()).match(/free\s*forever/gi)?.length === 1,
+    'Free forever is stated once',
   );
+  check(await page.locator('footer, .promise, .eyebrow, .desktop-note').count() === 0,
+    'Decorative pitch, repeated promise, and tiny footer are removed');
+  check((await page.locator('.compatibility').innerText()) === 'macOS 15+ · Signed & notarized',
+    'Compatibility line omits architecture names');
+  check(await page.locator('h1 br').count() === 0, 'Headline has no forced line break');
+  await page.setViewportSize({width: 1440, height: 1000});
+  check(await page.locator('h1').evaluate(el => el.getBoundingClientRect().height < parseFloat(getComputedStyle(el).lineHeight) * 1.5),
+    'Desktop headline fits on one line');
+  check(await page.evaluate(() => document.documentElement.scrollHeight < 1600), 'Desktop page stays consolidated');
+
+  const logo = page.locator('.brand-menu');
+  const logoToggle = page.locator('.brand-mark');
+  await logoToggle.hover();
+  check(await logo.getAttribute('open') !== null, 'Hover reveals the logo easter egg');
+  await page.waitForFunction(() => Math.abs(new DOMMatrixReadOnly(getComputedStyle(document.querySelector('.brand-mark svg')).transform).b + 1) < 0.01);
+  check(await page.locator('.brand-card').isVisible(), 'Rotated logo reveals its hidden links');
+  await page.locator('.brand-card a').first().hover();
+  check(await logo.getAttribute('open') !== null, 'Pointer can move from logo into the popup');
+  await page.locator('h1').hover();
+  check(await logo.getAttribute('open') === null, 'Leaving the logo closes the hover menu');
+  await logoToggle.focus();
+  await page.keyboard.press('Enter');
+  check(await page.locator('.brand-card').isVisible(), 'Keyboard opens the logo menu');
+  await page.keyboard.press('Tab');
+  check(await page.locator('.brand-card a').first().evaluate(el => el === document.activeElement), 'Hidden links are keyboard reachable');
+  await page.keyboard.press('Escape');
+  check(await logo.getAttribute('open') === null && await logoToggle.evaluate(el => el === document.activeElement), 'Escape closes logo menu and restores focus');
+  await logoToggle.hover();
+  await page.locator('h1').click();
+  check(await logo.getAttribute('open') === null, 'Outside click dismisses logo menu');
   check(
     await page.locator('.credits a[href="https://github.com/jordanbaird/Ice"]').count() === 2 &&
       (await page.locator('.credits').innerText()).includes('clicking and moving code is adapted from'),
@@ -128,6 +156,8 @@ async (page) => {
       .evaluate((el) => getComputedStyle(el).scrollBehavior)) === "auto",
     "Reduced motion disables smooth scrolling",
   );
+  check(await logoToggle.locator('svg').evaluate(el => getComputedStyle(el).transitionDuration === '0s'),
+    'Reduce Motion disables logo rotation animation');
   await page.emulateMedia({ reducedMotion: "no-preference" });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.evaluate(() => scrollTo(0, 0));
@@ -150,7 +180,17 @@ async (page) => {
     ),
     "Brew instructions work without JavaScript",
   );
+  await staticPage.locator('.brand-mark').click();
+  check(await staticPage.locator('.brand-card').isVisible(), 'Logo menu also works without JavaScript');
   await noJS.close();
+  const touch = await page.context().browser().newContext({hasTouch: true, isMobile: true, viewport: {width: 390, height: 844}});
+  const touchPage = await touch.newPage();
+  await touchPage.goto(base);
+  await touchPage.locator('.brand-mark').tap();
+  check(await touchPage.locator('.brand-card').isVisible(), 'Touch tap opens logo menu without hover interference');
+  await touchPage.locator('.brand-mark').tap();
+  check(await touchPage.locator('.brand-menu').getAttribute('open') === null, 'Second touch tap closes logo menu');
+  await touch.close();
   check(errors.length === 0, "No browser script errors");
   page.off("pageerror", onError);
   return { passed: checks.length, checks };

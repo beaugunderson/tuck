@@ -18,7 +18,7 @@
 }
 html {
   scroll-behavior: smooth;
-  scroll-padding-top: 32px;
+  scroll-padding-top: 24px;
 }
 body {
   margin: 0;
@@ -36,11 +36,13 @@ button {
   cursor: pointer;
 }
 button,
-a {
+a,
+summary {
   -webkit-tap-highlight-color: transparent;
 }
 button:focus-visible,
-a:focus-visible {
+a:focus-visible,
+summary:focus-visible {
   outline: 3px solid var(--orange);
   outline-offset: 5px;
 }
@@ -61,9 +63,9 @@ svg {
   overflow: hidden;
 }
 .page-shell {
-  max-width: 1144px;
+  max-width: 1080px;
   margin: auto;
-  padding: 0 48px;
+  padding: 0 40px 40px;
 }
 .skip-link {
   position: fixed;
@@ -72,7 +74,7 @@ svg {
   background: var(--ink);
   color: white;
   padding: 10px;
-  z-index: 10;
+  z-index: 20;
 }
 .skip-link:focus {
   top: 12px;
@@ -81,19 +83,24 @@ svg {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 32px 0;
+  padding: 25px 0;
 }
-.wordmark {
+.brand {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+.wordmark {
   text-decoration: none;
   font: 700 38px/1 var(--serif);
   letter-spacing: -2px;
 }
 .brand-dot {
   color: var(--orange);
-  margin-left: -11px;
+}
+.brand-menu {
+  position: relative;
+  z-index: 10;
 }
 .brand-mark {
   display: grid;
@@ -103,15 +110,55 @@ svg {
   width: 38px;
   height: 38px;
   color: var(--paper);
+  list-style: none;
+  cursor: pointer;
+}
+.brand-mark::-webkit-details-marker {
+  display: none;
 }
 .brand-mark svg {
   width: 25px;
   height: 25px;
   stroke-width: 2.4;
+  transition: transform 0.16s ease;
+}
+.brand-menu[open] .brand-mark svg {
+  transform: rotate(-90deg);
+}
+.brand-popup {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  padding-top: 9px;
+  width: 220px;
+}
+.brand-card {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px;
+  box-shadow: 0 8px 24px #25282020;
+}
+.brand-card p {
+  margin: 3px 8px 9px;
+  font: italic 20px var(--serif);
+  color: var(--orange);
+}
+.brand-card a {
+  display: flex;
+  justify-content: space-between;
+  padding: 7px 8px;
+  text-decoration: none;
+  font-size: 13px;
+  border-radius: 5px;
+}
+.brand-card a:hover,
+.brand-card a:focus-visible {
+  background: #ebece2;
 }
 .header nav {
   display: flex;
-  gap: 32px;
+  gap: 28px;
   font-size: 14px;
   font-weight: 500;
 }
@@ -123,55 +170,36 @@ svg {
 }
 .hero {
   text-align: center;
-  padding: 65px 0 51px;
-}
-.eyebrow {
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 1.65px;
-  text-transform: uppercase;
-  margin: 0 0 24px;
-}
-.hero .eyebrow {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 9px;
-}
-.status-dot {
-  display: inline-block;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #778563;
+  padding: 33px 0 31px;
 }
 .hero h1 {
-  font: 400 clamp(64px, 8.5vw, 108px) / 0.98 var(--serif);
-  letter-spacing: -5px;
-  margin: 0 0 28px;
+  font: 400 clamp(29px, 6.8vw, 76px) / 1.12 var(--serif);
+  letter-spacing: -2.7px;
+  margin: 0 0 17px;
 }
 .hero h1 em {
   color: var(--orange);
   font-weight: 400;
 }
 .hero-copy {
-  font-size: 17px;
+  font-size: 16px;
   color: var(--muted);
-  line-height: 1.7;
-  margin: 0 0 29px;
+  line-height: 1.65;
+  max-width: 620px;
+  margin: 0 auto 22px;
 }
 .hero-actions {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 22px;
+  gap: 20px;
 }
 .button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 10px;
-  padding: 13px 23px;
+  padding: 12px 21px;
   background: var(--ink);
   color: var(--paper);
   border-radius: 8px;
@@ -198,8 +226,7 @@ svg {
 .compatibility {
   font-size: 11px;
   color: var(--muted);
-  margin: 17px 0 0;
-  letter-spacing: 0.15px;
+  margin: 13px 0 0;
 }
 .demo {
   margin: 0;
@@ -208,13 +235,13 @@ svg {
   --bar: #326a87;
   --bar-text: #f8faff;
   position: relative;
-  height: 316px;
-  border: 6px solid #e7e8de;
-  border-radius: 18px;
+  height: 225px;
+  border: 5px solid #e7e8de;
+  border-radius: 15px;
   background: #c2d8da;
   isolation: isolate;
   overflow: hidden;
-  box-shadow: 0 10px 30px #292f2510;
+  box-shadow: 0 6px 20px #292f2510;
 }
 .desktop[data-theme="dark"] {
   --bar: #292e31;
@@ -229,10 +256,10 @@ svg {
 .sun {
   position: absolute;
   border-radius: 50%;
-  height: 110px;
-  width: 110px;
-  top: 84px;
-  right: 185px;
+  height: 94px;
+  width: 94px;
+  top: 85px;
+  right: 175px;
   background: #f4e4b2;
 }
 .hill {
@@ -244,13 +271,13 @@ svg {
 .hill-back {
   background: #839d8c;
   right: -200px;
-  bottom: -250px;
+  bottom: -260px;
   transform: rotate(-16deg);
 }
 .hill-front {
   background: #536f63;
   right: -420px;
-  bottom: -225px;
+  bottom: -235px;
   transform: rotate(-20deg);
 }
 .menu-bar {
@@ -315,7 +342,7 @@ svg {
 .demo-toggle svg {
   width: 20px;
   height: 20px;
-  transition: transform 0.2s;
+  transition: transform 0.16s;
 }
 .demo-toggle[aria-expanded="true"] svg {
   transform: rotate(-90deg);
@@ -342,27 +369,9 @@ svg {
   width: 23px;
   height: 23px;
 }
-.desktop-note {
-  position: absolute;
-  left: 42px;
-  top: 80px;
-  display: flex;
-  gap: 20px;
-  align-items: center;
-}
-.note-spark {
-  font:
-    48px Georgia,
-    serif;
-  color: #536f63;
-}
-.desktop-note p {
-  font: italic 24px/1.35 var(--serif);
-  color: #2b514e;
-}
 .demo-hint {
   position: absolute;
-  right: 225px;
+  right: 230px;
   top: 72px;
   font: italic 17px/1.35 var(--serif);
   color: #2b514e;
@@ -380,8 +389,8 @@ svg {
 }
 .theme-picker {
   position: absolute;
-  bottom: 20px;
-  left: 25px;
+  bottom: 17px;
+  left: 20px;
   display: flex;
   gap: 8px;
   background: #f7f5ef9e;
@@ -409,63 +418,45 @@ svg {
 .demo figcaption {
   display: flex;
   justify-content: space-between;
+  gap: 12px;
   font-size: 11px;
   color: var(--muted);
-  margin: 13px 6px 0;
+  margin: 10px 5px 0;
 }
 .demo-label {
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  font-size: 9px;
+  font-size: 10px;
   align-self: center;
+  white-space: nowrap;
 }
 .details {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 45px;
-  margin: 70px 0 74px;
-}
-.detail-number {
-  font:
-    10px ui-monospace,
-    SFMono-Regular,
-    Consolas,
-    monospace;
-  color: var(--orange);
-  letter-spacing: 1px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 42px;
+  margin: 32px 0;
 }
 .details h2 {
-  font: 400 27px/1.15 var(--serif);
-  letter-spacing: -0.6px;
-  margin: 20px 0 16px;
+  font: 400 25px/1.2 var(--serif);
+  letter-spacing: -0.5px;
+  margin: 0 0 10px;
 }
 .details p {
   font-size: 13px;
-  line-height: 1.85;
+  line-height: 1.75;
   color: var(--muted);
   margin: 0;
 }
 .install {
   border-top: 1px solid var(--line);
-  padding: 65px 0 64px;
+  border-bottom: 1px solid var(--line);
+  padding: 29px 0 26px;
   display: grid;
-  grid-template-columns: 1fr 1.4fr;
-  gap: 58px;
-}
-.install .eyebrow {
-  color: var(--orange);
-  font-size: 10px;
-  letter-spacing: 1.3px;
-  margin-bottom: 16px;
+  grid-template-columns: 1fr 2fr;
+  gap: 34px;
 }
 .install h2 {
-  font: 400 44px/1.12 var(--serif);
-  letter-spacing: -1.5px;
-  margin: 0 0 22px;
-}
-.install-heading > p:last-child {
-  font-size: 13px;
-  color: var(--muted);
+  font: 400 34px/1.12 var(--serif);
+  letter-spacing: -1px;
+  margin: 0;
 }
 .install h3 {
   font-size: 14px;
@@ -490,14 +481,14 @@ svg {
   margin-left: 4px;
 }
 .brew {
-  margin-top: 25px;
+  margin-top: 20px;
 }
 .brew-heading {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 10px;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 .brew-heading > span {
   font:
@@ -520,7 +511,7 @@ svg {
 }
 .command code {
   font:
-    11px/1.7 ui-monospace,
+    12px/1.7 ui-monospace,
     SFMono-Regular,
     Consolas,
     monospace;
@@ -532,7 +523,7 @@ svg {
   background: var(--paper);
   color: var(--muted);
   padding: 5px 8px;
-  font-size: 10px;
+  font-size: 11px;
 }
 .command button:hover {
   color: var(--ink);
@@ -542,71 +533,26 @@ svg {
   font-size: 11px;
   color: var(--orange);
   min-height: 1.5em;
-  margin: 4px 0;
+  margin: 4px 0 0;
 }
 .permission-note {
   font-size: 12px;
   line-height: 1.8;
   color: var(--muted);
-  margin: 9px 0 0;
+  margin: 8px 0 0;
 }
 .permission-note strong {
   color: var(--ink);
   font-weight: 600;
 }
-.source-note {
-  font-size: 11px;
-  line-height: 1.7;
-  color: var(--muted);
-  margin: 14px 0 0;
-}
-.promise {
-  display: flex;
-  align-items: center;
-  gap: 28px;
-  background: #ebece2;
-  border-radius: 12px;
-  padding: 35px 40px;
-}
-.promise-mark {
-  font: 76px/0.8 var(--serif);
-  color: var(--orange);
-  transform: translateY(-6px);
-}
-.promise h2 {
-  font: 400 30px/1.2 var(--serif);
-  letter-spacing: -0.6px;
-  margin: 0 0 10px;
-}
-.promise p {
-  font-size: 13px;
-  color: var(--muted);
-  margin: 0 0 12px;
-}
-.promise a {
-  font-size: 11px;
-  text-decoration: none;
-  font-weight: 600;
-}
-.promise a:hover {
-  text-decoration: underline;
-}
 .credits {
-  max-width: 680px;
-  margin: 49px auto 0;
-  padding-bottom: 35px;
-  text-align: center;
-}
-.credits .eyebrow {
-  font-size: 10px;
-  color: var(--muted);
-  letter-spacing: 1px;
-  margin-bottom: 14px;
+  max-width: 740px;
+  margin: 29px auto 0;
 }
 .credits h2 {
-  font: 400 30px/1.25 var(--serif);
+  font: 400 27px/1.25 var(--serif);
   letter-spacing: -0.5px;
-  margin: 0 0 15px;
+  margin: 0 0 12px;
 }
 .credits h2 a {
   color: var(--orange);
@@ -614,68 +560,23 @@ svg {
 }
 .credits h2 a span {
   display: inline-block;
-  font: 18px var(--sans);
+  font: 17px var(--sans);
 }
-.credits p:not(.eyebrow) {
+.credits p {
   font-size: 13px;
-  line-height: 1.85;
+  line-height: 1.8;
   color: var(--muted);
-  margin: 10px 0 0;
+  margin: 8px 0 0;
 }
 .credits p.credits-license {
   font-size: 11px;
 }
-footer {
-  display: flex;
-  justify-content: space-between;
-  gap: 20px;
-  padding: 31px 0 34px;
-  font-size: 10px;
-  color: var(--muted);
-}
-footer a {
-  text-decoration: none;
-}
-footer a:hover {
-  text-decoration: underline;
-}
-.footer-divider {
-  margin: 0 12px;
-  color: #a4a896;
-}
-@media (min-width: 1400px) {
-  .hero {
-    padding-top: 85px;
-  }
-}
-@media (max-width: 850px) {
+@media (max-width: 800px) {
   .page-shell {
-    padding: 0 28px;
+    padding: 0 26px 32px;
   }
   .hero h1 {
-    letter-spacing: -3px;
-  }
-  .details {
-    gap: 26px;
-  }
-  .install {
-    grid-template-columns: 1fr 1.4fr;
-    gap: 30px;
-  }
-  .install h2 {
-    font-size: 38px;
-  }
-  .desktop-note {
-    left: 28px;
-    gap: 12px;
-    top: 113px;
-  }
-  .desktop-note p {
-    font-size: 21px;
-  }
-  .demo-hint {
-    right: 180px;
-    top: 80px;
+    letter-spacing: -1.5px;
   }
   .menu-left {
     gap: 14px;
@@ -683,22 +584,23 @@ footer a:hover {
   .menu-left span:last-child {
     display: none;
   }
-  .command {
-    align-items: flex-start;
+  .install {
+    grid-template-columns: 1fr 2.4fr;
+    gap: 25px;
   }
-  .promise {
-    padding: 30px;
+  .install h2 {
+    font-size: 29px;
   }
-  .hero {
-    padding-top: 50px;
+  .command code {
+    font-size: 11px;
   }
 }
 @media (max-width: 600px) {
   .page-shell {
-    padding: 0 21px;
+    padding: 0 21px 28px;
   }
   .header {
-    padding: 24px 0;
+    padding: 22px 0;
   }
   .wordmark {
     font-size: 33px;
@@ -713,41 +615,32 @@ footer a:hover {
     font-size: 12px;
   }
   .hero {
-    padding: 43px 0 34px;
-  }
-  .eyebrow {
-    font-size: 9px;
-    letter-spacing: 1.1px;
+    padding: 20px 0 25px;
   }
   .hero h1 {
-    font-size: 71px;
-    letter-spacing: -3.5px;
-    margin-bottom: 23px;
+    letter-spacing: -0.9px;
+    margin-bottom: 15px;
   }
   .hero-copy {
     font-size: 14px;
-    max-width: 310px;
-    margin: 0 auto 24px;
-  }
-  .desktop-break {
-    display: none;
+    margin-bottom: 20px;
   }
   .hero-actions {
-    gap: 16px;
+    gap: 15px;
   }
   .button {
     font-size: 12px;
-    padding: 12px 16px;
+    padding: 12px 15px;
   }
   .free-note {
     font-size: 17px;
   }
   .compatibility {
-    font-size: 9px;
-    margin-top: 15px;
+    font-size: 10px;
+    margin-top: 13px;
   }
   .desktop {
-    height: 272px;
+    height: 203px;
     border-width: 4px;
     border-radius: 13px;
   }
@@ -783,34 +676,23 @@ footer a:hover {
     width: 19px;
     height: 19px;
   }
-  .desktop-note {
-    top: 126px;
-    left: 21px;
-    gap: 13px;
-  }
-  .desktop-note p {
-    font-size: 19px;
-  }
-  .note-spark {
-    font-size: 32px;
-  }
   .sun {
     right: 31px;
-    top: 123px;
-    width: 73px;
-    height: 73px;
+    top: 94px;
+    width: 65px;
+    height: 65px;
   }
   .hill-back {
     right: -490px;
-    bottom: -270px;
+    bottom: -285px;
   }
   .hill-front {
     right: -650px;
-    bottom: -250px;
+    bottom: -265px;
   }
   .demo-hint {
-    top: 68px;
-    right: 160px;
+    top: 66px;
+    right: 155px;
     font-size: 14px;
   }
   .demo-hint span {
@@ -831,56 +713,37 @@ footer a:hover {
     font-size: 10px;
     gap: 16px;
     line-height: 1.5;
-    margin: 10px 2px 0;
+    margin: 9px 2px 0;
   }
   .demo-label {
-    font-size: 8px;
-    max-width: 75px;
-    text-align: right;
+    font-size: 9px;
   }
   .details {
     grid-template-columns: 1fr;
-    gap: 28px;
-    margin: 43px 0;
-  }
-  .details article {
-    display: grid;
-    grid-template-columns: 1fr 1.25fr;
-    gap: 0 18px;
-  }
-  .detail-number {
-    grid-column: 1/-1;
-    margin-bottom: 12px;
-    font-size: 9px;
+    gap: 22px;
+    margin: 25px 0;
   }
   .details h2 {
     font-size: 23px;
-    margin: 0;
+    margin-bottom: 7px;
   }
   .details p {
-    font-size: 12px;
-    line-height: 1.7;
+    font-size: 13px;
   }
   .install {
-    padding: 39px 0;
+    padding: 24px 0;
     grid-template-columns: 1fr;
-    gap: 20px;
+    gap: 18px;
   }
   .install h2 {
-    font-size: 37px;
-    margin-bottom: 14px;
-  }
-  .install h2 br {
-    display: none;
-  }
-  .install-heading > p:last-child {
-    margin-bottom: 0;
-  }
-  .install-heading > p:last-child br {
-    display: none;
+    font-size: 28px;
   }
   .install h3 {
     font-size: 13px;
+  }
+  .command {
+    gap: 7px;
+    padding: 10px;
   }
   .command code {
     font-size: 10px;
@@ -888,29 +751,14 @@ footer a:hover {
   .brew-heading > span {
     font-size: 8px;
   }
-  .promise {
-    gap: 18px;
-    padding: 25px 20px;
-    align-items: flex-start;
+  .credits {
+    margin-top: 24px;
   }
-  .promise-mark {
-    font-size: 43px;
-    transform: translateY(8px);
+  .credits h2 {
+    font-size: 24px;
   }
-  .promise h2 {
-    font-size: 25px;
-  }
-  .promise p {
+  .credits p {
     font-size: 12px;
-  }
-  .promise a {
-    font-size: 10px;
-  }
-  footer {
-    flex-direction: column;
-    gap: 7px;
-    padding: 23px 0;
-    font-size: 9px;
   }
 }
 @media (prefers-reduced-motion: reduce) {
