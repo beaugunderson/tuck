@@ -2,3 +2,5 @@ build/
 reference/
 tmp/
 .DS_Store
+.netlify/
+.playwright-cli/

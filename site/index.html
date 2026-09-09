@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f7f5ef" />
+    <meta
+      name="description"
+      content="A tiny, free macOS menu bar manager. Tuck away the clutter. Get your icons back in a click. Free forever, open source, and easy on your Mac."
+    />
+    <title>Tuck — a little less menu bar.</title>
+    <link rel="canonical" href="https://tuck.bar/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Tuck — a little less menu bar." />
+    <meta
+      property="og:description"
+      content="Your icons, neatly tucked away. A tiny macOS menu bar manager. Free. Forever."
+    />
+    <meta property="og:url" content="https://tuck.bar/" />
+    <meta property="og:image" content="https://tuck.bar/social.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/style.css" />
+    <script src="/site.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <svg class="symbols" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <defs>
+        <symbol id="chevron" viewBox="0 0 24 24">
+          <path d="m14 5-7 7 7 7" />
+        </symbol>
+        <symbol id="arrow" viewBox="0 0 24 24">
+          <path d="M12 4v15m-6-6 6 6 6-6M5 21h14" />
+        </symbol>
+        <symbol id="wifi" viewBox="0 0 24 24">
+          <path
+            d="M2 8a16 16 0 0 1 20 0M5.5 11.5a10 10 0 0 1 13 0M9 15a5 5 0 0 1 6 0"
+          />
+          <circle cx="12" cy="19" r="1" fill="currentColor" stroke="none" />
+        </symbol>
+        <symbol id="battery" viewBox="0 0 24 24">
+          <rect x="2" y="6" width="17" height="12" rx="3" />
+          <path d="M22 10v4M6 10v4m4-4v4m4-4v4" />
+        </symbol>
+        <symbol id="moon" viewBox="0 0 24 24">
+          <path d="M20 15A9 9 0 0 1 9 4a9 9 0 1 0 11 11Z" />
+        </symbol>
+        <symbol id="cloud" viewBox="0 0 24 24">
+          <path d="M7 18a5 5 0 0 1-1-10 6 6 0 0 1 11-1 5.5 5.5 0 0 1 0 11Z" />
+        </symbol>
+        <symbol id="grid" viewBox="0 0 24 24">
+          <rect x="4" y="4" width="5" height="5" rx="1" />
+          <rect x="15" y="4" width="5" height="5" rx="1" />
+          <rect x="4" y="15" width="5" height="5" rx="1" />
+          <rect x="15" y="15" width="5" height="5" rx="1" />
+        </symbol>
+        <symbol id="headphones" viewBox="0 0 24 24">
+          <path d="M4 14V11a8 8 0 0 1 16 0v3" />
+          <rect x="3" y="12" width="5" height="8" rx="2" />
+          <rect x="16" y="12" width="5" height="8" rx="2" />
+        </symbol>
+        <symbol id="lock" viewBox="0 0 24 24">
+          <rect x="5" y="10" width="14" height="11" rx="3" />
+          <path d="M8 10V7a4 4 0 0 1 8 0v3m-4 5v2" />
+        </symbol>
+        <symbol id="star" viewBox="0 0 24 24">
+          <path
+            d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9Z"
+          />
+        </symbol>
+        <symbol id="sliders" viewBox="0 0 24 24">
+          <rect x="3" y="4" width="18" height="6" rx="3" />
+          <rect x="3" y="14" width="18" height="6" rx="3" />
+          <circle cx="8" cy="7" r="1" />
+          <circle cx="16" cy="17" r="1" />
+        </symbol>
+      </defs>
+    </svg>
+
+    <div class="page-shell">
+      <header class="header">
+        <a href="/" class="wordmark" aria-label="Tuck home"
+          ><span class="brand-mark"
+            ><svg><use href="#chevron" /></svg></span
+          >tuck<span class="brand-dot">.</span></a
+        >
+        <nav aria-label="Main navigation">
+          <a href="#install">Install</a
+          ><a href="https://github.com/beaugunderson/tuck"
+            >GitHub <span aria-hidden="true">↗</span></a
+          >
+        </nav>
+      </header>
+
+      <main id="main">
+        <section class="hero" aria-labelledby="hero-title">
+          <p class="eyebrow">
+            <span class="status-dot"></span> A small kindness for your Mac
+          </p>
+          <h1 id="hero-title">A little less<br /><em>menu bar.</em></h1>
+          <p class="hero-copy">
+            Keep the icons you need. Tuck away the rest.<br
+              class="desktop-break"
+            />
+            A tiny, free menu bar manager that stays out of your way.
+          </p>
+          <div class="hero-actions">
+            <a class="button download" href="/download"
+              ><svg aria-hidden="true"><use href="#arrow" /></svg>Download for
+              Mac</a
+            ><span class="free-note">Free. Forever.</span>
+          </div>
+          <p class="compatibility">
+            Apple silicon · macOS 15 or later · Signed &amp; notarized
+          </p>
+        </section>
+
+        <figure class="demo" aria-labelledby="demo-caption">
+          <div class="desktop" data-theme="blue">
+            <div class="landscape" aria-hidden="true">
+              <div class="sun"></div>
+              <div class="hill hill-back"></div>
+              <div class="hill hill-front"></div>
+            </div>
+            <div class="menu-bar">
+              <div class="menu-left" aria-hidden="true">
+                <span class="apple">●</span><strong>Finder</strong
+                ><span>File</span><span>Edit</span><span>View</span
+                ><span>Go</span>
+              </div>
+              <div class="menu-right">
+                <button
+                  class="demo-toggle"
+                  aria-label="Show hidden icons in demo"
+                  aria-expanded="false"
+                  aria-controls="demo-tray"
+                >
+                  <svg aria-hidden="true"><use href="#chevron" /></svg>
+                </button>
+                <span class="menu-icon" aria-hidden="true"
+                  ><svg><use href="#moon" /></svg
+                ></span>
+                <span class="menu-icon" aria-hidden="true"
+                  ><svg><use href="#wifi" /></svg
+                ></span>
+                <span class="menu-icon" aria-hidden="true"
+                  ><svg><use href="#battery" /></svg
+                ></span>
+                <span class="menu-time" aria-hidden="true">9:41</span>
+              </div>
+            </div>
+            <div
+              class="demo-tray"
+              id="demo-tray"
+              hidden
+              aria-label="Illustrated hidden menu bar icons"
+            >
+              <svg aria-hidden="true"><use href="#cloud" /></svg
+              ><svg aria-hidden="true"><use href="#grid" /></svg
+              ><svg aria-hidden="true"><use href="#headphones" /></svg
+              ><svg aria-hidden="true"><use href="#lock" /></svg
+              ><svg aria-hidden="true"><use href="#star" /></svg
+              ><svg aria-hidden="true"><use href="#sliders" /></svg>
+            </div>
+            <div class="desktop-note">
+              <span class="note-spark" aria-hidden="true">✳</span>
+              <p>
+                A place for everything. <br />And a little room for nothing.
+              </p>
+            </div>
+            <div class="demo-hint" aria-hidden="true">
+              That little chevron? <br />Give it a click. <span>↗</span>
+            </div>
+            <div
+              class="theme-picker"
+              role="group"
+              aria-label="Demo menu bar color"
+            >
+              <button
+                class="theme-swatch blue"
+                aria-label="Blue menu bar"
+                aria-pressed="true"
+                data-theme="blue"
+              ></button
+              ><button
+                class="theme-swatch dark"
+                aria-label="Dark menu bar"
+                aria-pressed="false"
+                data-theme="dark"
+              ></button>
+            </div>
+          </div>
+          <figcaption id="demo-caption">
+            <span>Less up here. More room for what matters.</span
+            ><span class="demo-label">Interactive illustration</span>
+          </figcaption>
+        </figure>
+
+        <section class="details" aria-label="Why Tuck">
+          <article>
+            <span class="detail-number">01 / NEAT</span>
+            <h2>Out of sight.<br />One click away.</h2>
+            <p>
+              Click the chevron to see your hidden icons. Click an icon to open
+              it. The real glyphs, in their original colors, on a background
+              that fits your menu bar.
+            </p>
+          </article>
+          <article>
+            <span class="detail-number">02 / TINY</span>
+            <h2>Light on your Mac.<br />And your mind.</h2>
+            <p>
+              Native Swift. No always-on mouse tracking. Around 0% idle CPU and
+              14 MB of memory in local testing. It manages your menu bar, not
+              your whole life.
+            </p>
+          </article>
+          <article>
+            <span class="detail-number">03 / YOURS</span>
+            <h2>Your setup.<br />Remembered.</h2>
+            <p>
+              Choose what stays visible with a right-click. Tuck remembers your
+              layout for different screen widths, from the laptop to the big
+              monitor.
+            </p>
+          </article>
+        </section>
+
+        <section class="install" id="install" aria-labelledby="install-title">
+          <div class="install-heading">
+            <p class="eyebrow">Make a little space</p>
+            <h2 id="install-title">Up and tucked <br />in a minute.</h2>
+            <p>
+              No account. No subscription. <br />And no “pro” version waiting
+              around the corner.
+            </p>
+          </div>
+          <div class="install-options">
+            <div class="install-download">
+              <h3>The usual way</h3>
+              <p>Download, unzip, and move Tuck to Applications.</p>
+              <a class="text-link" href="/download"
+                >Get the latest Tuck <span aria-hidden="true">↓</span></a
+              >
+            </div>
+            <div class="brew">
+              <div class="brew-heading">
+                <h3>For the terminally inclined</h3>
+                <span>HOMEBREW</span>
+              </div>
+              <div class="command">
+                <code id="brew-command"
+                  >brew install --cask beaugunderson/tap/tuck</code
+                ><button
+                  id="copy-brew"
+                  aria-label="Copy Homebrew install command"
+                >
+                  Copy
+                </button>
+              </div>
+              <p
+                id="copy-status"
+                class="copy-status"
+                role="status"
+                aria-live="polite"
+              ></p>
+            </div>
+            <p class="permission-note">
+              <strong>One small setup step.</strong> Allow Accessibility so Tuck
+              can move and click icons, and Screen Recording so it can show
+              their actual glyphs. If they don’t appear right away, restart Tuck
+              from its right-click menu.
+            </p>
+            <p class="source-note">
+              On an Intel Mac? The prebuilt download is Apple silicon only.
+              <a href="https://github.com/beaugunderson/tuck#build-from-source"
+                >See the source and build instructions.</a
+              >
+            </p>
+          </div>
+        </section>
+
+        <section class="promise" aria-labelledby="promise-title">
+          <span class="promise-mark" aria-hidden="true">↤</span>
+          <div>
+            <h2 id="promise-title">Free. Not “free for now.”</h2>
+            <p>
+              Tuck will always be free. I made it because I wanted a simpler
+              menu bar.<br class="desktop-break" />
+              If you want one too, here you go.
+            </p>
+            <a href="https://github.com/beaugunderson/tuck"
+              >Open source, GPLv3 <span aria-hidden="true">↗</span></a
+            >
+          </div>
+        </section>
+      </main>
+
+      <footer>
+        <span
+          >A little thing by
+          <a href="https://beaugunderson.com">Beau Gunderson</a>.</span
+        ><span
+          >With thanks to
+          <a href="https://github.com/jordanbaird/Ice">Ice</a>.<span
+            class="footer-divider"
+            >/</span
+          ><a href="https://github.com/beaugunderson/tuck/issues"
+            >Something not working?</a
+          ></span
+        >
+      </footer>
+    </div>
+  </body>
+</html>

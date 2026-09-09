@@ -1,6 +1,8 @@
 # Tuck
 
-A tiny, performance-obsessed menu bar manager for macOS — a lightweight Bartender replacement. ~0% idle CPU, ~14 MB, no always-on event tap.
+A tiny, performance-obsessed menu bar manager for macOS — a lightweight Bartender replacement. ~0% idle CPU, ~14 MB, no always-on event tap. **Free, forever.**
+
+**[tuck.bar](https://tuck.bar)** · [Download the latest release](https://github.com/beaugunderson/tuck/releases/latest/download/Tuck.zip)
 
 ## What it does today
 
@@ -45,11 +47,29 @@ Then grant **Accessibility** and **Screen Recording** when prompted (see Permiss
 open build/Tuck.app
 ```
 
-Requires macOS 14+ (developed on macOS 26). No Xcode project — plain `swiftc`. `release.sh <version>` builds, notarizes, and publishes a release.
+The prebuilt release requires **Apple silicon and macOS 15+** (verified from the release binary; the bundle's older minimum-version metadata is not authoritative). Source builds use the current machine's architecture and SDK defaults. Developed on macOS 26. No Xcode project — plain `swiftc`. `release.sh <version>` builds, notarizes, and publishes a release.
 
 ## Tests
 
 Run `bash Tests/run.sh` for background-color and sampling-geometry checks, then `./build.sh` to compile and sign the app. See `Tests/Manual.md` for permission and appearance checks that require a running app and macOS privacy settings.
+
+## Website
+
+The microsite at **https://tuck.bar** lives in `site/` and is hosted on Netlify (`tuck-bar`, project ID `8a0e0c9f-1fac-4490-acbe-b4b26922d834`). Plain HTML/CSS/JS, local system fonts, no build step, trackers, or runtime dependencies. Netlify publishes `site/`; `netlify.toml` contains the build settings.
+
+`/download` is a non-cacheable 302 to GitHub’s `/releases/latest/download/Tuck.zip`. Every release uploads that stable name alongside the versioned ZIP used by Homebrew. Both contain the same notarized, stapled app; no GitHub API call or website redeploy is needed when a new app version ships.
+
+Local preview and browser checks:
+
+```sh
+python3 -m http.server 8126 --bind 127.0.0.1 --directory site
+# In another shell (playwright-cli installed):
+mkdir -p tmp
+playwright-cli -s=tuck-site open http://127.0.0.1:8126/
+playwright-cli -s=tuck-site run-code --filename=Tests/site-browser.js
+```
+
+Manual deployment: `netlify deploy --prod --no-build --dir site --site 8a0e0c9f-1fac-4490-acbe-b4b26922d834`.
 
 ## Layout
 

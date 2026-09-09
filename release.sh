@@ -16,6 +16,7 @@ PROFILE="tuck-notary"
 APP="Tuck"
 BUNDLE="build/$APP.app"
 ZIP="build/${APP}-${VERSION}.zip"
+LATEST_ZIP="build/${APP}.zip"
 TAG="v${VERSION}"
 
 echo "==> Building $APP $VERSION"
@@ -52,8 +53,12 @@ xcrun stapler validate "$BUNDLE"
 echo "==> Re-zipping the stapled app (this is the artifact that ships)"
 /usr/bin/ditto -c -k --keepParent "$BUNDLE" "$ZIP"
 
+# Keep a stable asset name for /releases/latest/download/Tuck.zip. Both names
+# contain the same signed, notarized, stapled app; Homebrew keeps the versioned one.
+cp "$ZIP" "$LATEST_ZIP"
+
 echo "==> Creating GitHub release $TAG"
-gh release create "$TAG" "$ZIP" \
+gh release create "$TAG" "$ZIP" "$LATEST_ZIP" \
   --repo beaugunderson/tuck \
   --title "$APP $VERSION" \
   --notes "Tuck $VERSION — a tiny, performance-obsessed menu bar manager for macOS."
