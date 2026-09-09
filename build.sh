@@ -8,14 +8,23 @@ VERSION="${TUCK_VERSION:-0.1.0}"
 BUNDLE="build/$APP.app"
 MACOS="$BUNDLE/Contents/MacOS"
 RES="$BUNDLE/Contents/Resources"
+MIN_MACOS="15.0"
+SLICES="build/slices"
+SDK="$(xcrun --sdk macosx --show-sdk-path)"
 
-mkdir -p "$MACOS" "$RES"
+mkdir -p "$MACOS" "$RES" "$SLICES"
 
-echo "Compiling…"
-swiftc -O \
-  -o "$MACOS/$APP" \
-  Sources/*.swift \
-  -framework Cocoa -framework ServiceManagement -framework ApplicationServices
+# Cross-compile both architectures regardless of the host. An explicit target
+# also prevents a newer build machine from silently raising the minimum OS.
+for ARCH in arm64 x86_64; do
+  echo "Compiling $ARCH (macOS $MIN_MACOS+)…"
+  swiftc -O -sdk "$SDK" -target "${ARCH}-apple-macos${MIN_MACOS}" \
+    -o "$SLICES/$APP-$ARCH" \
+    Sources/*.swift \
+    -framework Cocoa -framework ServiceManagement -framework ApplicationServices
+done
+lipo -create "$SLICES/$APP-arm64" "$SLICES/$APP-x86_64" -output "$MACOS/$APP"
+lipo "$MACOS/$APP" -verify_arch arm64 x86_64
 
 cat > "$BUNDLE/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -30,7 +39,7 @@ cat > "$BUNDLE/Contents/Info.plist" <<PLIST
   <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
   <key>CFBundleShortVersionString</key><string>$VERSION</string>
   <key>CFBundleVersion</key><string>$VERSION</string>
-  <key>LSMinimumSystemVersion</key><string>13.0</string>
+  <key>LSMinimumSystemVersion</key><string>$MIN_MACOS</string>
   <key>LSUIElement</key><true/>
   <key>NSPrincipalClass</key><string>NSApplication</string>
   <key>NSHumanReadableCopyright</key><string>Built by Beau + Claude</string>

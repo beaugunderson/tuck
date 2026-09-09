@@ -21,6 +21,7 @@ TAG="v${VERSION}"
 
 echo "==> Building $APP $VERSION"
 TUCK_VERSION="$VERSION" ./build.sh
+bash Tests/check-bundle.sh
 
 # Refuse to ship an ad-hoc-signed bundle (notarization would fail anyway, and it
 # would lose the stable TCC identity). Capture first rather than piping into

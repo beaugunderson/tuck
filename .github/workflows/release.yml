@@ -35,6 +35,9 @@ jobs:
           rm -f /tmp/devid.p12
           security find-identity -v -p codesigning "$KEYCHAIN"
 
+      - name: Test both architectures
+        run: bash Tests/run.sh
+
       - name: Build, notarize, staple, publish release
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
@@ -55,6 +58,7 @@ jobs:
           cd tap
           sed -i '' -E "s/^  version \"[^\"]+\"/  version \"${VERSION}\"/" Casks/tuck.rb
           sed -i '' -E "s/^  sha256 \"[^\"]+\"/  sha256 \"${SHA}\"/" Casks/tuck.rb
+          sed -i '' -E 's/^  depends_on macos: .*/  depends_on macos: :sequoia/' Casks/tuck.rb
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add Casks/tuck.rb
