@@ -46,7 +46,8 @@ final class IceBar {
         guard let buttonWindow = button.window,
               let screen = buttonWindow.screen ?? NSScreen.main else { return }
 
-        let content = BarContentView(entries: entries) { [weak self] index in
+        let barAppearance = MenuBarAppearance.capture(below: button)
+        let content = BarContentView(entries: entries, background: barAppearance?.background) { [weak self] index in
             self?.hide()
             self?.onSelect?(index)
         }
@@ -57,6 +58,9 @@ final class IceBar {
             contentRect: NSRect(origin: .zero, size: size),
             styleMask: [.nonactivatingPanel, .borderless, .fullSizeContentView],
             backing: .buffered, defer: true)
+        // Explicitly inherit the status button's appearance if sampling fails,
+        // rather than the application's potentially different light/dark mode.
+        panel.appearance = barAppearance?.appearance ?? button.effectiveAppearance
         panel.isFloatingPanel = true
         panel.level = .statusBar
         panel.isOpaque = false
@@ -99,14 +103,24 @@ final class IceBar {
 private final class BarContentView: NSView {
     private let onSelect: (Int) -> Void
 
-    init(entries: [BarEntry], onSelect: @escaping (Int) -> Void) {
+    init(entries: [BarEntry], background: NSColor?, onSelect: @escaping (Int) -> Void) {
         self.onSelect = onSelect
         super.init(frame: .zero)
 
-        let effect = NSVisualEffectView()
-        effect.material = .menu
-        effect.blendingMode = .behindWindow
-        effect.state = .active
+        let effect: NSView
+        if let background {
+            // Opaque sampled color preserves the actual menu bar's contrast;
+            // vibrancy would blend it with unrelated windows behind the strip.
+            effect = NSView()
+            effect.wantsLayer = true
+            effect.layer?.backgroundColor = background.cgColor
+        } else {
+            let visualEffect = NSVisualEffectView()
+            visualEffect.material = .menu
+            visualEffect.blendingMode = .behindWindow
+            visualEffect.state = .active
+            effect = visualEffect
+        }
         effect.wantsLayer = true
         effect.layer?.cornerRadius = 10
         effect.layer?.masksToBounds = true

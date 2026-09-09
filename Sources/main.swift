@@ -280,10 +280,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func toggleBar(from sender: NSStatusBarButton) {
         if iceBar.isOpen { iceBar.hide(); return }
+        guard Bridging.screenRecordingGranted() else {
+            showScreenRecordingHelp()
+            return
+        }
         currentHidden = hiddenItems()
         let glyphs = captureGlyphs(for: currentHidden)
+        guard currentHidden.isEmpty || !glyphs.isEmpty else {
+            showScreenRecordingHelp()
+            return
+        }
         let entries = currentHidden.map { item in
-            BarEntry(glyph: glyphs[item.windowID] ?? scaledAppIcon(item), label: item.displayName)
+            let glyph = glyphs[item.windowID]
+            return BarEntry(
+                glyph: glyph ?? NSImage(systemSymbolName: "questionmark.square.dashed", accessibilityDescription: "Icon unavailable"),
+                label: glyph == nil ? "\(item.displayName) — icon unavailable" : item.displayName
+            )
         }
         iceBar.onSelect = { [weak self] index in
             guard let self, index >= 0, index < currentHidden.count else { return }
@@ -292,17 +304,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         iceBar.toggle(entries, below: sender)
     }
 
-    private func scaledAppIcon(_ item: MenuBarItem) -> NSImage? {
-        guard let icon = item.owningApplication?.icon else { return nil }
-        let copy = icon.copy() as! NSImage
-        copy.size = NSSize(width: 18, height: 18)
-        return copy
-    }
-
     // MARK: - Glyph capture (composite, Ice's createImages approach)
 
     private func captureGlyphs(for items: [MenuBarItem]) -> [CGWindowID: NSImage] {
-        guard let screen = menuBarScreen() else { return [:] }
+        guard Bridging.screenRecordingGranted(), let screen = menuBarScreen() else { return [:] }
         let scale = screen.backingScaleFactor
 
         var frames: [CGWindowID: CGRect] = [:]
@@ -345,11 +350,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             add(menu, "Enable Accessibility for Tuck…", #selector(openAccessibilitySettings))
             menu.addItem(.separator())
         }
+        if !Bridging.screenRecordingGranted() {
+            add(menu, "Enable Screen Recording for Tuck…", #selector(showScreenRecordingHelp))
+            menu.addItem(.separator())
+        }
         addIconChecklist(to: menu)
         add(menu, "Show All", #selector(toggleReveal), state: revealInBar ? .on : .off)
         add(menu, "Launch at Login", #selector(toggleLaunchAtLogin), state: SMAppService.mainApp.status == .enabled ? .on : .off)
         menu.addItem(.separator())
         add(menu, "How to Hide an Icon…", #selector(showHelp))
+        add(menu, "Icon Capture Help…", #selector(showScreenRecordingHelp))
+        add(menu, "Restart Tuck…", #selector(confirmRestart))
         let quit = NSMenuItem(title: "Quit Tuck", action: #selector(quit), keyEquivalent: "q")
         quit.target = self
         menu.addItem(quit)
@@ -423,7 +434,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             mi.target = self
             mi.state = isShownAlways(item, separator: separator) ? .on : .off
             mi.representedObject = NSNumber(value: item.windowID)
-            if let glyph = glyphs[item.windowID] ?? scaledAppIcon(item) {
+            if let glyph = glyphs[item.windowID] {
                 mi.image = menuGlyph(glyph)
             }
             menu.addItem(mi)
@@ -499,6 +510,69 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         _ = AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeUnretainedValue(): true] as CFDictionary)
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
             NSWorkspace.shared.open(url)
+        }
+    }
+
+    @objc private func showScreenRecordingHelp() {
+        iceBar.hide()
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.messageText = Bridging.screenRecordingGranted()
+            ? "Menu bar icons couldn’t be captured" : "Tuck needs Screen Recording"
+        alert.informativeText = """
+        Enable Tuck in System Settings → Privacy & Security → Screen Recording \
+        (called Screen & System Audio Recording on some macOS versions). \
+        Tuck uses this permission to display the real menu bar icons.
+
+        If you already enabled it, quit and reopen Tuck or choose Restart Tuck below. \
+        macOS may not make a new grant available until the app restarts.
+
+        If restarting doesn’t help, use Show All in Tuck’s right-click menu to check \
+        that the icons are still in the menu bar; macOS can drop overflowing icons.
+        """
+        alert.addButton(withTitle: "Open Settings")
+        alert.addButton(withTitle: "Restart Tuck")
+        alert.addButton(withTitle: "Cancel")
+        switch alert.runModal() {
+        case .alertFirstButtonReturn:
+            if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") {
+                NSWorkspace.shared.open(url)
+            }
+        case .alertSecondButtonReturn:
+            restart()
+        default:
+            break
+        }
+    }
+
+    @objc private func confirmRestart() {
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.messageText = "Restart Tuck?"
+        alert.informativeText = "Your shown and hidden icon choices will be kept."
+        alert.addButton(withTitle: "Restart Tuck")
+        alert.addButton(withTitle: "Cancel")
+        if alert.runModal() == .alertFirstButtonReturn { restart() }
+    }
+
+    private func restart() {
+        iceBar.hide()
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.createsNewApplicationInstance = true
+        configuration.activates = false
+        // LaunchServices must start a new instance, not activate this one. Keep
+        // this process alive on failure so the user still has a working chevron.
+        NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration) { app, error in
+            Task { @MainActor in
+                if app != nil {
+                    NSApp.terminate(nil)
+                } else {
+                    let alert = NSAlert()
+                    alert.messageText = "Tuck couldn’t restart"
+                    alert.informativeText = error?.localizedDescription ?? "Quit Tuck and reopen it from Applications."
+                    alert.runModal()
+                }
+            }
         }
     }
 

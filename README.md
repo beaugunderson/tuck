@@ -6,6 +6,7 @@ A tiny, performance-obsessed menu bar manager for macOS — a lightweight Barten
 
 - Click Tuck's chevron for a panel listing **every hidden menu bar icon** — including ones the notch pushed off the bar — read from the Accessibility tree.
 - Each icon shows its **real rendered menu-bar glyph** (Wi-Fi, battery, Dropbox, SwiftBar's live text, Dato's date…), captured in one composite pass.
+- The strip samples the menu bar’s background color when opened, keeping white glyphs readable even with light-mode apps and a dark or colorful wallpaper. Original glyph colors are preserved.
 - Click a hidden icon and it opens: Tuck briefly slides it on-screen, clicks it so its own menu opens, then slides it back (synthetic-CGEvent technique ported from Ice).
 - Right-click the chevron for options: a checklist to show/hide each icon (no dragging needed), plus Show All, Launch at Login, and help.
 - ⌘-drag any icon to the left of Tuck's divider to hide it, right to keep it visible (native macOS gesture).
@@ -25,6 +26,8 @@ Menu bar item enumeration and capture use private SkyLight window APIs bound via
 - **Accessibility** — enumerate icons.
 - **Screen Recording** — capture real glyphs.
 
+After granting Screen Recording, **quit and reopen Tuck** if icons do not appear. macOS may require a restart before capture works. Tuck now offers Settings and Restart actions when permission is missing or all hidden-icon captures fail, rather than showing a strip of identical Control Center icons. These actions are also available under **Icon Capture Help…** in the right-click menu. A single uncapturable icon gets a question-mark placeholder; if macOS dropped an overflowing icon, try **Show All**.
+
 Sign with a stable Developer ID so grants persist across rebuilds (`build.sh` does this).
 
 ## Install
@@ -43,6 +46,10 @@ open build/Tuck.app
 ```
 
 Requires macOS 14+ (developed on macOS 26). No Xcode project — plain `swiftc`. `release.sh <version>` builds, notarizes, and publishes a release.
+
+## Tests
+
+Run `bash Tests/run.sh` for background-color and sampling-geometry checks, then `./build.sh` to compile and sign the app. See `Tests/Manual.md` for permission and appearance checks that require a running app and macOS privacy settings.
 
 ## Layout
 

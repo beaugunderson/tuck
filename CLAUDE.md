@@ -14,7 +14,8 @@ No always-on event tap, no mouse tracking. Everything is click-driven except one
 
 ## Architecture (Sources/)
 - `main.swift` — AppDelegate: status items, the chevron/options handlers, `captureGlyphs` (composite capture + per-item crop), the help dialog + diagram.
-- `IceBar.swift` — the floating horizontal strip (borderless NSPanel + NSVisualEffectView + hover cells). Centered on the chevron, clamped to screen. 0.25s debounce so clicking the chevron while open closes it (not close-then-reopen).
+- `IceBar.swift` — the floating horizontal strip (borderless NSPanel + sampled-color background + hover cells, visual-effect fallback). Centered on the chevron, clamped to screen. 0.25s debounce so clicking the chevron while open closes it (not close-then-reopen).
+- `MenuBarAppearance.swift` — on-open sampling of the Window Server’s `Menubar` background window near the chevron, on the button’s display. Opaque sampled RGB keeps captured white glyphs readable in light system mode with dark/colored wallpaper; control appearance follows the sample’s brightness. If unavailable, fall back to the status button’s appearance and menu material. No timer or capture while closed.
 - `ItemManager.swift` — ported from Ice's MenuBarItemManager: synthetic-CGEvent click + ⌘-drag move + temp-show/rehide. Event taps here are transient (per-op, 50ms) → no idle cost. `tlog()` writes `/tmp/tuck.log` for debugging.
 - `Bridging.swift` / `Private.swift` — private SkyLight (CGS) window APIs + capture, bound via `@_silgen_name`.
 - `WindowInfo` / `MenuBarItem` / `MenuBarItemInfo` — Ice's item model (trimmed).
@@ -32,7 +33,8 @@ No always-on event tap, no mouse tracking. Everything is click-driven except one
 
 ## Build / sign / permissions
 - `./build.sh` → compiles `Sources/*.swift`, assembles `build/Tuck.app`, signs with Developer ID (`Developer ID Application: Beau Gunderson (D7UFB67V5Z)`). Developer ID keeps TCC grants across rebuilds; ad-hoc loses them every rebuild.
-- Needs **Accessibility** (enumerate/move) + **Screen Recording** (capture glyphs). Stale grants after an identity change: `tccutil reset {Accessibility|ScreenCapture} com.beau.tuck`.
+- Needs **Accessibility** (enumerate/move) + **Screen Recording** (capture glyphs). Newly granted Screen Recording may need a quit/reopen. Missing permission or total glyph-capture failure now presents Settings/Restart guidance; partial failures use a question mark, never the misleading Control Center owner icon. Right-click also offers Icon Capture Help and Restart. Restart uses LaunchServices with `createsNewApplicationInstance` and only terminates the old process after launch succeeds. Stale grants after an identity change: `tccutil reset {Accessibility|ScreenCapture} com.beau.tuck`.
+- `bash Tests/run.sh` runs synthetic color/geometry regression checks; `Tests/Manual.md` covers real TCC, relaunch, and display/appearance scenarios.
 
 ## License
 Ports GPLv3 code from Ice (jordanbaird/Ice) → Tuck is GPLv3. `reference/Ice/` is the studied checkout; `port-staging/` holds the source files adapted in.
