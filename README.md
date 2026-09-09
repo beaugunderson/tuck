@@ -47,11 +47,11 @@ Then grant **Accessibility** and **Screen Recording** when prompted (see Permiss
 open build/Tuck.app
 ```
 
-The prebuilt release requires **Apple silicon and macOS 15+** (verified from the release binary; the bundle's older minimum-version metadata is not authoritative). Source builds use the current machine's architecture and SDK defaults. Developed on macOS 26. No Xcode project — plain `swiftc`. `release.sh <version>` builds, notarizes, and publishes a release.
+Requires **macOS 15+**, on **Apple silicon or Intel**. `build.sh` cross-compiles arm64 and x86_64 with an explicit macOS 15.0 deployment target, combines them into one universal executable with `lipo`, and signs the final bundle. Developed on macOS 26. No Xcode project — plain `swiftc`. `release.sh <version>` validates both slices, notarizes, and publishes a release.
 
 ## Tests
 
-Run `bash Tests/run.sh` for background-color and sampling-geometry checks, then `./build.sh` to compile and sign the app. See `Tests/Manual.md` for permission and appearance checks that require a running app and macOS privacy settings.
+Run `bash Tests/run.sh` for background-color and sampling-geometry checks compiled for both architectures. It executes each supported architecture (including x86_64 under Rosetta when available) and reports any runtime skips. After `./build.sh`, run `bash Tests/check-bundle.sh` to verify both slices, deployment targets, bundle metadata, and signatures. The release pipeline runs both checks. See `Tests/Manual.md` for permission and appearance checks that require a running app and macOS privacy settings.
 
 ## Website
 
@@ -69,7 +69,9 @@ playwright-cli -s=tuck-site open http://127.0.0.1:8126/
 playwright-cli -s=tuck-site run-code --filename=Tests/site-browser.js
 ```
 
-Manual deployment: `netlify deploy --prod --no-build --dir site --site 8a0e0c9f-1fac-4490-acbe-b4b26922d834`.
+Push to `main` to deploy automatically through Netlify’s GitHub integration. Manual deployment: `netlify deploy --prod --no-build --dir site --site 8a0e0c9f-1fac-4490-acbe-b4b26922d834`.
+
+DNS stays at Spaceship: `@ A 75.2.60.5`, `www CNAME tuck-bar.netlify.app` (TTL 300). Keep Spaceship’s nameservers and DNSSEC; there is no need to migrate DNS to Netlify.
 
 ## Layout
 
