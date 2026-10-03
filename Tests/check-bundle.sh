@@ -4,7 +4,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 bundle="${1:-build/Tuck.app}"
 binary="$bundle/Contents/MacOS/Tuck"
-lipo "$binary" -verify_arch arm64 x86_64
+lipo "$binary" -verify_arch arm64
+lipo "$binary" -verify_arch x86_64
 minimum=$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' "$bundle/Contents/Info.plist")
 [[ "$minimum" == "15.0" ]]
 for architecture in arm64 x86_64; do

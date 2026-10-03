@@ -75,6 +75,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var chevron: Chevron?
     private var currentHidden: [MenuBarItem] = []
 
+    /// macOS 27: the hidden apps' icons are back on the bar until the chevron
+    /// is clicked again or `peekTimer` fires.
+    private var isPeeking = false
+    private var peekTimer: Timer?
+    private let peekInterval: TimeInterval = 10
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         toggleItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         toggleItem.autosaveName = "tuck.toggle"
@@ -96,18 +102,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             toggleItem.button?.setAccessibilityValue(isOpen ? "Expanded" : "Collapsed")
         }
 
-        separatorItem = NSStatusBar.system.statusItem(withLength: expandedWidth)
-        separatorItem.autosaveName = "tuck.separator"
-        if let button = separatorItem.button {
-            button.image = dividerImage()
-            button.target = self
-            button.action = #selector(chevronClicked(_:))
-            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
+        // macOS 27 hides by app through `AllowList`, so there is no divider there.
+        if !AgentBar.isActive {
+            separatorItem = NSStatusBar.system.statusItem(withLength: expandedWidth)
+            separatorItem.autosaveName = "tuck.separator"
+            if let button = separatorItem.button {
+                button.image = dividerImage()
+                button.target = self
+                button.action = #selector(chevronClicked(_:))
+                button.sendAction(on: [.leftMouseUp, .rightMouseUp])
+            }
         }
 
-        applyReveal()
         loadPresets()
         activeKey = screenKey()
+        applyReveal()
         updatePolling()
         NotificationCenter.default.addObserver(
             self, selector: #selector(screenParametersChanged),
@@ -117,9 +126,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if !AXIsProcessTrusted() {
             _ = AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeUnretainedValue(): true] as CFDictionary)
         }
-        if !Bridging.screenRecordingGranted() {
+        if !AgentBar.isActive, !Bridging.screenRecordingGranted() {
             Bridging.requestScreenRecording()
         }
+    }
+
+    /// Hidden apps have no icon to click while Tuck is gone, so quitting
+    /// switches them all back on.
+    func applicationWillTerminate(_ notification: Notification) {
+        guard AgentBar.isActive else { return }
+        try? AllowList.apply(Dictionary(uniqueKeysWithValues: managedBundles().map { ($0, true) }))
     }
 
     private var revealInBar: Bool {
@@ -128,6 +144,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func applyReveal() {
+        if AgentBar.isActive { applyHidden(); return }
         separatorItem.length = revealInBar ? expandedWidth : collapsedWidth
         separatorItem.button?.image = revealInBar ? dividerImage() : nil
     }
@@ -158,7 +175,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// The screen Tuck's own status item is drawn on, i.e. the menu bar we manage.
     private func menuBarScreen() -> NSScreen? {
-        separatorItem.button?.window?.screen ?? NSScreen.screens.first
+        (separatorItem ?? toggleItem).button?.window?.screen ?? NSScreen.screens.first
     }
 
     /// Presets vary by available real estate, so the key is the menu bar's width
@@ -216,13 +233,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             activeKey = key
             updatePolling()
         }
+        if AgentBar.isActive { applyHidden(); return }
         Task { await reconcile() }
     }
 
     /// Runs the reconcile poll only while the active preset has entries — an
-    /// empty preset means no timer, so the idle cost stays at zero.
+    /// empty preset means no timer, so the idle cost stays at zero. macOS 27
+    /// needs no poll: the system keeps an app's switch across relaunches.
     private func updatePolling() {
-        if activePreset.isEmpty {
+        if activePreset.isEmpty || AgentBar.isActive {
             pollTimer?.invalidate()
             pollTimer = nil
         } else if pollTimer == nil {
@@ -273,7 +292,164 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .sortedByOrderInMenuBar()
     }
 
+    // MARK: - Hiding by app (macOS 27)
+    //
+    // A preset's `hidden` set holds one entry per hidden app, keyed by bundle
+    // identifier with an empty title. Hidden means the app's "Allow in the
+    // Menu Bar" switch is off; `applyHidden` makes the switches match.
+
+    private func bundleInfo(_ bundleID: String) -> MenuBarItemInfo {
+        MenuBarItemInfo(namespace: MenuBarItemInfo.Namespace(bundleID), title: "")
+    }
+
+    private func hiddenBundles(in preset: ScreenPreset) -> Set<String> {
+        Set(preset.hidden.filter { $0.title.isEmpty }.map(\.namespace.rawValue))
+    }
+
+    /// Every app any screen's preset hides: the switches Tuck is responsible
+    /// for. An app the user switched off in System Settings is never in here.
+    private func managedBundles() -> Set<String> {
+        presets.values.reduce(into: Set<String>()) { $0.formUnion(hiddenBundles(in: $1)) }
+    }
+
+    /// The names `MenuBarAgent` may file an app's saved positions under: its
+    /// bundle identifier, or the app's own name.
+    private func itemOwners(of bundles: Set<String>) -> Set<String> {
+        var owners = bundles
+        for bundle in bundles {
+            let running = NSRunningApplication.runningApplications(withBundleIdentifier: bundle).first
+            let url = running?.bundleURL ?? NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundle)
+            if let name = running?.localizedName { owners.insert(name) }
+            if let name = url?.deletingPathExtension().lastPathComponent { owners.insert(name) }
+        }
+        return owners
+    }
+
+    /// Switches off the active preset's hidden apps and switches on the rest
+    /// of the managed ones; everything is on while peeking or showing all.
+    private func applyHidden() {
+        let hidden = hiddenBundles(in: activePreset)
+        let hide = (isPeeking || revealInBar) ? [] : hidden
+        let changes = Dictionary(uniqueKeysWithValues: managedBundles().map { ($0, !hide.contains($0)) })
+        do {
+            // Before any switch flips, so icons that come back land together
+            // on the left instead of in among the always-shown ones.
+            try ItemOrder.group(hiddenOwners: itemOwners(of: hidden))
+            try AllowList.apply(changes)
+        } catch {
+            NSLog("Tuck: could not update the menu bar allow list: \(error)")
+        }
+    }
+
+    private func setPeeking(_ peeking: Bool) {
+        isPeeking = peeking
+        peekTimer?.invalidate()
+        peekTimer = nil
+        applyHidden()
+        chevron?.setExpanded(peeking)
+        toggleItem.button?.toolTip = peeking
+            ? "Tuck — click to hide menu bar icons"
+            : "Tuck — click to see hidden menu bar icons"
+        toggleItem.button?.setAccessibilityValue(peeking ? "Expanded" : "Collapsed")
+        if peeking { schedulePeekEnd(after: peekInterval) }
+    }
+
+    /// A one-shot timer that hides the icons again, unless the pointer is
+    /// still up in the menu bar or a button is down (a menu is being used).
+    private func schedulePeekEnd(after interval: TimeInterval) {
+        peekTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: false) { [weak self] _ in
+            Task { @MainActor in
+                guard let self, self.isPeeking else { return }
+                let pointer = NSEvent.mouseLocation
+                let inMenuBar = NSScreen.screens.contains { $0.frame.contains(pointer) && pointer.y > $0.frame.maxY - 30 }
+                if inMenuBar || NSEvent.pressedMouseButtons != 0 {
+                    self.schedulePeekEnd(after: 3)
+                } else {
+                    self.setPeeking(false)
+                }
+            }
+        }
+    }
+
+    /// One row per app: those with an icon on the bar now, then the hidden ones.
+    private func addAppChecklist(to menu: NSMenu) {
+        guard let states = try? AllowList.states() else {
+            add(menu, "Enable Full Disk Access for Tuck…", #selector(showFullDiskAccessHelp))
+            menu.addItem(.separator())
+            return
+        }
+        let agentPID = AgentBar.agent?.processIdentifier
+        var bundles: [String] = []
+        for item in AgentBar.items(on: menuBarScreen()) where item.pid != getpid() && item.pid != agentPID {
+            guard let bundle = NSRunningApplication(processIdentifier: item.pid)?.bundleIdentifier, !bundles.contains(bundle) else { continue }
+            bundles.append(bundle)
+        }
+        let hidden = hiddenBundles(in: activePreset)
+        bundles += hidden.subtracting(bundles).sorted()
+        guard !bundles.isEmpty else { return }
+
+        menu.addItem(.sectionHeader(title: "Menu Bar Icons · \(presetLabel())"))
+        for bundle in bundles {
+            let running = NSRunningApplication.runningApplications(withBundleIdentifier: bundle).first
+            let url = running?.bundleURL ?? NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundle)
+            let name = running?.localizedName.flatMap { $0.isEmpty ? nil : $0 }
+                ?? url?.deletingPathExtension().lastPathComponent
+                ?? bundle
+            let mi = NSMenuItem(title: name, action: #selector(toggleAppVisibility(_:)), keyEquivalent: "")
+            mi.target = self
+            // An app switched off in System Settings, outside Tuck, also reads as hidden.
+            mi.state = hidden.contains(bundle) || states[bundle] == false ? .off : .on
+            mi.representedObject = bundle
+            if let url { mi.image = menuGlyph(NSWorkspace.shared.icon(forFile: url.path)) }
+            menu.addItem(mi)
+        }
+        menu.addItem(.separator())
+    }
+
+    @objc private func toggleAppVisibility(_ sender: NSMenuItem) {
+        guard let bundle = sender.representedObject as? String else { return }
+        var preset = activePreset
+        if sender.state == .on {
+            preset.hidden.insert(bundleInfo(bundle))
+        } else {
+            preset.hidden.remove(bundleInfo(bundle))
+            // Switch it on here: once out of every preset it is no longer managed.
+            try? AllowList.apply([bundle: true])
+        }
+        activePreset = preset
+        savePresets()
+        applyHidden()
+    }
+
+    @objc private func showFullDiskAccessHelp() {
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.messageText = "Tuck needs Full Disk Access"
+        alert.informativeText = """
+        On macOS 27, Tuck hides an app's menu bar icons by switching it off in System Settings → \
+        Menu Bar → Allow in the Menu Bar. macOS keeps those switches in Control Center's settings \
+        file, which an app can only read and change with Full Disk Access.
+
+        Tuck reads and writes that one file. Enable Tuck in System Settings → Privacy & Security → \
+        Full Disk Access, then restart Tuck.
+        """
+        alert.addButton(withTitle: "Open Settings")
+        alert.addButton(withTitle: "Restart Tuck")
+        alert.addButton(withTitle: "Cancel")
+        switch alert.runModal() {
+        case .alertFirstButtonReturn:
+            if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles") {
+                NSWorkspace.shared.open(url)
+            }
+        case .alertSecondButtonReturn:
+            restart()
+        default:
+            break
+        }
+    }
+
     private func toggleBar(from sender: NSStatusBarButton) {
+        if AgentBar.isActive { setPeeking(!isPeeking); return }
         if iceBar.isOpen { iceBar.hide(); return }
         guard Bridging.screenRecordingGranted() else {
             showScreenRecordingHelp()
@@ -345,7 +521,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             add(menu, "Enable Accessibility for Tuck…", #selector(openAccessibilitySettings))
             menu.addItem(.separator())
         }
-        if !Bridging.screenRecordingGranted() {
+        if !AgentBar.isActive, !Bridging.screenRecordingGranted() {
             add(menu, "Enable Screen Recording for Tuck…", #selector(showScreenRecordingHelp))
             menu.addItem(.separator())
         }
@@ -354,7 +530,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         add(menu, "Launch at Login", #selector(toggleLaunchAtLogin), state: SMAppService.mainApp.status == .enabled ? .on : .off)
         menu.addItem(.separator())
         add(menu, "How to Hide an Icon…", #selector(showHelp))
-        add(menu, "Icon Capture Help…", #selector(showScreenRecordingHelp))
+        if !AgentBar.isActive { add(menu, "Icon Capture Help…", #selector(showScreenRecordingHelp)) }
         add(menu, "Restart Tuck…", #selector(confirmRestart))
         let quit = NSMenuItem(title: "Quit Tuck", action: #selector(quit), keyEquivalent: "q")
         quit.target = self
@@ -411,6 +587,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func addIconChecklist(to menu: NSMenu) {
         guard AXIsProcessTrusted() else { return }
+        if AgentBar.isActive { addAppChecklist(to: menu); return }
         let allItems = MenuBarItem.getMenuBarItems(onScreenOnly: false, activeSpaceOnly: true)
         let manageable = manageableItems(in: allItems)
         guard !manageable.isEmpty, let separator = separatorModel(in: allItems) else { return }
@@ -575,6 +752,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
         alert.messageText = "Hiding and showing menu bar icons"
+        if AgentBar.isActive {
+            alert.informativeText = """
+            1. Right-click Tuck's chevron and untick an app — its menu bar icons disappear. \
+            Tick it again to bring them back.
+
+            2. Click Tuck's chevron anytime to bring every hidden icon back for a moment; \
+            click it again, or move away from the menu bar, and they hide.
+
+            Hiding works per app: if an app has several menu bar icons, they hide together.
+            """
+            alert.addButton(withTitle: "Got it")
+            alert.runModal()
+            return
+        }
         alert.informativeText = """
         1. Right-click Tuck's chevron and turn on “Show All” — this reveals Tuck's divider \
         (a thin bar) in the menu bar.

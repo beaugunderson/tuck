@@ -12,6 +12,20 @@ These require a running, signed Tuck app. Do not reset a user's TCC grants just 
 - Check a partial capture failure (e.g. an overflow-dropped item): other glyphs remain usable; only the missing glyph shows a question mark with an unavailable tooltip.
 - Right-click with Screen Recording denied: the checklist still has labels and works with Accessibility, but must not show misleading Control Center app icons.
 
+## macOS 27 (hiding by app)
+
+- Without Full Disk Access, right-click shows "Enable Full Disk Access for Tuck…" with Open Settings, Restart Tuck, and Cancel, and nothing is hidden. After granting it and restarting, the checklist lists one row per app.
+- Untick an app: its icons leave the bar within about a second and no system `«` button appears. Tick it: they return where they were.
+- Untick an app with several icons (SwiftBar): all of them hide together.
+- Hide an app whose icon sits between two always-shown icons, then left-click the chevron: it comes back left of every always-shown icon, and the hidden apps keep their order among themselves.
+- Left-click the chevron: every hidden app's icons return and are clickable. Click again: they hide. Leave it open with the pointer away from the menu bar: it closes after about ten seconds, and not while the pointer is in the menu bar or a menu is open.
+- Hide an app, quit it, relaunch it: it stays hidden with no action from Tuck.
+- Show All on: everything is visible; off: the preset's apps hide again.
+- Quit Tuck with apps hidden: every one of them is back on the bar, and System Settings → Menu Bar shows them allowed.
+- Switch an app off in System Settings yourself: Tuck's checklist shows it unticked and never switches it back on unless it is ticked there.
+- Dock or undock to a screen of another width: that screen's preset applies, and an app hidden only on the other screen returns.
+- With Screen Recording denied, nothing prompts for it.
+
 ## Appearance
 
 - Light system mode + blue/dark menu bar + white glyphs: open the strip. Its background should match the local menu bar tint and the glyphs should remain readable.

@@ -15,6 +15,15 @@ A tiny, performance-obsessed menu bar manager for macOS — a lightweight Barten
 - Checklist choices are remembered and restored — a menu bar icon that vanishes and reappears (e.g. a SwiftBar plugin that goes quiet) is nudged back to where you put it.
 - **Per-screen presets.** Choices are kept per menu bar width, so the notched laptop bar and a wide external monitor each have their own set of hidden icons. Docking or undocking switches presets automatically; a screen width you have never used starts as a copy of the previous one. The checklist header names the screen you are editing.
 
+## On macOS 27
+
+macOS 27 draws every status item in one `MenuBarAgent` window, so there are no per-icon windows to capture or push off-screen. Tuck works differently there:
+
+- Hiding is per app. Tuck switches an app off in macOS's own "Allow in the Menu Bar" list, and its icons leave the bar; an app with several icons hides them together.
+- Click Tuck's chevron and every hidden app's real icons come back, grouped to the left of the ones that are always shown. Click again, or wait about ten seconds with the pointer out of the menu bar, and they hide.
+- Right-click the chevron for a checklist of apps, Show All, and per-screen presets. Quitting Tuck brings every hidden icon back.
+- Tuck needs **Full Disk Access** there, because macOS keeps that list in Control Center's settings file. It reads and writes that one file. Screen Recording is not used; there is no strip and no capture.
+
 ## Why it's fast
 
 Design tenet: **near-zero idle work.** No always-on event tap, no mouse tracking; nothing runs until you click. The only recurring work is a lightweight poll that exists solely while the active preset has entries, moving items back if they respawn on the wrong side. Screen changes arrive as a notification, not a poll. Measured idle: **~0% CPU / ~14 MB**, vs Ice's 1.5–2.6% / 44 MB (Ice keeps a global mouse-tracking event tap alive).
@@ -79,5 +88,5 @@ DNS stays at Spaceship: `@ A 75.2.60.5`, `www CNAME tuck-bar.netlify.app` (TTL 3
 
 ## Layout
 
-- `Sources/` — the app: `main.swift` (status items + click handlers), `IceBar.swift` (the hidden-icon strip), `ItemManager.swift` (click/move machinery), `Bridging.swift`/`Private.swift` (SkyLight + capture), `AXNames.swift` (real app names).
+- `Sources/` — the app: `main.swift` (status items + click handlers), `IceBar.swift` (the hidden-icon strip), `ItemManager.swift` (click/move machinery), `Bridging.swift`/`Private.swift` (SkyLight + capture), `AXNames.swift` (real app names), `AgentBar.swift` and `AllowList.swift` (the macOS 27 path: which apps have icons, and the per-app switches that hide them).
 - `port-staging/` — the verbatim Ice files the port adapted from.

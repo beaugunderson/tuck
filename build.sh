@@ -24,7 +24,9 @@ for ARCH in arm64 x86_64; do
     -framework Cocoa -framework ServiceManagement -framework ApplicationServices
 done
 lipo -create "$SLICES/$APP-arm64" "$SLICES/$APP-x86_64" -output "$MACOS/$APP"
-lipo "$MACOS/$APP" -verify_arch arm64 x86_64
+for ARCH in arm64 x86_64; do
+  lipo "$MACOS/$APP" -verify_arch "$ARCH"
+done
 
 cat > "$BUNDLE/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
