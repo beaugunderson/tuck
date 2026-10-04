@@ -80,6 +80,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var isPeeking = false
     private var peekTimer: Timer?
     private let peekInterval: TimeInterval = 10
+    private var agentCheckTimer: Timer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         toggleItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -327,7 +328,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Switches off the active preset's hidden apps and switches on the rest
     /// of the managed ones; everything is on while peeking or showing all.
-    private func applyHidden() {
+    /// Returns false when the switches could not be read or written.
+    @discardableResult
+    private func applyHidden() -> Bool {
         let hidden = hiddenBundles(in: activePreset)
         let hide = (isPeeking || revealInBar) ? [] : hidden
         let changes = Dictionary(uniqueKeysWithValues: managedBundles().map { ($0, !hide.contains($0)) })
@@ -335,17 +338,52 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // Before any switch flips, so icons that come back land together
             // on the left instead of in among the always-shown ones.
             try ItemOrder.group(hiddenOwners: itemOwners(of: hidden))
-            try AllowList.apply(changes)
+            if try AllowList.apply(changes) { scheduleAgentCheck() }
+            return true
         } catch {
             NSLog("Tuck: could not update the menu bar allow list: \(error)")
+            return false
         }
+    }
+
+    /// `MenuBarAgent` stops hearing about allow-list writes once the user's
+    /// `cfprefsd` has been killed: the write lands and the bar does not move.
+    /// A restarted agent reloads the list, so a write the bar ignored gets one.
+    private func scheduleAgentCheck() {
+        agentCheckTimer?.invalidate()
+        guard AXIsProcessTrusted() else { return }
+        agentCheckTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: false) { [weak self] _ in
+            Task { @MainActor in self?.restartAgentIfStale() }
+        }
+    }
+
+    private func restartAgentIfStale() {
+        let hidden = hiddenBundles(in: activePreset)
+        let onBar = Set(AgentBar.items(on: nil).compactMap {
+            NSRunningApplication(processIdentifier: $0.pid)?.bundleIdentifier
+        })
+        let stale: Bool
+        if isPeeking || revealInBar {
+            let running = hidden.filter { !NSRunningApplication.runningApplications(withBundleIdentifier: $0).isEmpty }
+            stale = !running.isEmpty && onBar.isDisjoint(with: running)
+        } else {
+            stale = !onBar.isDisjoint(with: hidden)
+        }
+        guard stale, let agent = AgentBar.agent else { return }
+        NSLog("Tuck: the menu bar ignored an allow-list write; restarting MenuBarAgent")
+        kill(agent.processIdentifier, SIGTERM)
     }
 
     private func setPeeking(_ peeking: Bool) {
         isPeeking = peeking
         peekTimer?.invalidate()
         peekTimer = nil
-        applyHidden()
+        // A click that changes nothing on the bar says why.
+        guard applyHidden() else {
+            isPeeking = false
+            showFullDiskAccessHelp()
+            return
+        }
         chevron?.setExpanded(peeking)
         toggleItem.button?.toolTip = peeking
             ? "Tuck — click to hide menu bar icons"
