@@ -82,6 +82,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let peekInterval: TimeInterval = 10
     private var agentCheckTimer: Timer?
     private let autoUpdateKey = "checkForUpdatesAutomatically"
+    private let askedAboutUpdatesKey = "askedAboutUpdates"
     private var updateTimer: Timer?
     private var isCheckingForUpdates = false
     /// A downloaded, verified release waiting for a restart.
@@ -136,7 +137,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if !AgentBar.isActive, !Bridging.screenRecordingGranted() {
             Bridging.requestScreenRecording()
         }
-        if defaults.bool(forKey: autoUpdateKey) { scheduleUpdateCheck(after: 15) }
+        if defaults.bool(forKey: autoUpdateKey) {
+            scheduleUpdateCheck(after: 15)
+        } else if !defaults.bool(forKey: askedAboutUpdatesKey) {
+            // After launch settles, so it does not land under the Accessibility prompt.
+            Timer.scheduledTimer(withTimeInterval: 2, repeats: false) { [weak self] _ in
+                Task { @MainActor in self?.askAboutUpdates() }
+            }
+        }
     }
 
     /// Hidden apps have no icon to click while Tuck is gone, so quitting
@@ -810,6 +818,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var currentVersion: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
+    }
+
+    /// Asked once per install; the answer is the menu's switch.
+    private func askAboutUpdates() {
+        defaults.set(true, forKey: askedAboutUpdatesKey)
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.messageText = "Check for Tuck updates automatically?"
+        alert.informativeText = """
+        Tuck can look for a new version once a day and download it. It never installs on its own: \
+        the update waits in the right-click menu until you restart Tuck.
+
+        You can change this any time from that menu.
+        """
+        alert.addButton(withTitle: "Check Automatically")
+        alert.addButton(withTitle: "Not Now")
+        if alert.runModal() == .alertFirstButtonReturn { toggleAutoUpdate() }
     }
 
     @objc private func toggleAutoUpdate() {

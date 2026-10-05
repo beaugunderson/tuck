@@ -28,6 +28,7 @@ These require a running, signed Tuck app. Do not reset a user's TCC grants just 
 
 ## Updates
 
+- `defaults delete com.beau.tuck askedAboutUpdates` and `checkForUpdatesAutomatically`, then launch: one alert asks about automatic checks. Check Automatically turns the menu switch on; Not Now leaves it off. Either way it does not appear on the next launch.
 - With an older release installed, choose Check for Updates…: expect "Tuck X is ready" with Restart Now / Later. Later leaves "Restart to Update to Tuck X" in the right-click menu and a tooltip on the chevron.
 - Restart Now (or the menu item): Tuck relaunches as the new version with its permissions intact, and on macOS 27 the hidden icons stay hidden through the restart.
 - On the latest release, Check for Updates… reports "Tuck is up to date".

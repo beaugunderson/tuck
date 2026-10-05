@@ -11,7 +11,7 @@ A tiny, performance-obsessed menu bar manager for macOS — a lightweight Barten
 - The strip samples the menu bar’s background color when opened, keeping white glyphs readable even with light-mode apps and a dark or colorful wallpaper. Original glyph colors are preserved.
 - Click a hidden icon and it opens: Tuck briefly slides it on-screen, clicks it so its own menu opens, then slides it back (synthetic-CGEvent technique ported from Ice).
 - Right-click the chevron for options: a checklist to show/hide each icon (no dragging needed), plus Show All, Launch at Login, and help.
-- Updates are opt-in: "Check for Updates Automatically" looks once a day, downloads a newer release, and offers "Restart to Update" in the same menu. A download is used only if it is Tuck, signed by the same Developer ID, and notarized.
+- Updates are opt-in: Tuck asks once at first launch, and the answer is the "Check for Updates Automatically" switch in the menu. On, it looks once a day, downloads a newer release, and offers "Restart to Update" in the same menu. A download is used only if it is Tuck, signed by the same Developer ID, and notarized.
 - ⌘-drag any icon to the left of Tuck's divider to hide it, right to keep it visible (native macOS gesture).
 - Checklist choices are remembered and restored — a menu bar icon that vanishes and reappears (e.g. a SwiftBar plugin that goes quiet) is nudged back to where you put it.
 - **Per-screen presets.** Choices are kept per menu bar width, so the notched laptop bar and a wide external monitor each have their own set of hidden icons. Docking or undocking switches presets automatically; a screen width you have never used starts as a copy of the previous one. The checklist header names the screen you are editing.
