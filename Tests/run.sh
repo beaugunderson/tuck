@@ -9,7 +9,7 @@ for source in Sources/*.swift; do
 done
 sdk=$(xcrun --sdk macosx --show-sdk-path)
 for architecture in arm64 x86_64; do
-    for suite in MenuBarAppearance Chevron AllowList Updater; do
+    for suite in MenuBarAppearance Chevron AllowList Updater AgentBar; do
         binary="$work/$suite-tests-$architecture"
         swiftc -sdk "$sdk" -target "$architecture-apple-macos15.0" \
             -o "$binary" "${sources[@]}" "Tests/${suite}Tests.swift" \

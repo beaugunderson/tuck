@@ -104,19 +104,16 @@ enum AllowList {
     }
 
     /// Sets the given apps' switches, skipping the write when nothing differs.
-    /// Returns whether it wrote.
-    @discardableResult
-    static func apply(_ changes: [String: Bool]) throws -> Bool {
+    static func apply(_ changes: [String: Bool]) throws {
         let current = try export()
         let existing = try states(inDomain: current)
         // An app with no row is allowed, so only a hide needs a new row.
         let needed = changes.filter { existing[$0.key] ?? true != $0.value }
-        guard !needed.isEmpty else { return false }
+        guard !needed.isEmpty else { return }
         let file = FileManager.default.temporaryDirectory.appendingPathComponent("tuck-allowlist-\(UUID().uuidString).plist")
         try updating(domain: current, with: needed).write(to: file)
         defer { try? FileManager.default.removeItem(at: file) }
         _ = try defaults(["import", domain, file.path])
-        return true
     }
 }
 

@@ -80,7 +80,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var isPeeking = false
     private var peekTimer: Timer?
     private let peekInterval: TimeInterval = 10
-    private var agentCheckTimer: Timer?
     private let autoUpdateKey = "checkForUpdatesAutomatically"
     private let askedAboutUpdatesKey = "askedAboutUpdates"
     private var updateTimer: Timer?
@@ -136,6 +135,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         if !AgentBar.isActive, !Bridging.screenRecordingGranted() {
             Bridging.requestScreenRecording()
+        }
+        if AgentBar.isActive {
+            // Login items restart the preferences daemon after the agent is
+            // up; one look once login has settled heals that before a click.
+            Timer.scheduledTimer(withTimeInterval: 30, repeats: false) { [weak self] _ in
+                Task { @MainActor in self?.restartAgentIfDeaf() }
+            }
         }
         if defaults.bool(forKey: autoUpdateKey) {
             scheduleUpdateCheck(after: 15)
@@ -354,7 +360,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // Before any switch flips, so icons that come back land together
             // on the left instead of in among the always-shown ones.
             try ItemOrder.group(hiddenOwners: itemOwners(of: hidden))
-            if try AllowList.apply(changes) { scheduleAgentCheck() }
+            try AllowList.apply(changes)
+            // After the write: `defaults` has started the daemon if none was running.
+            restartAgentIfDeaf()
             return true
         } catch {
             NSLog("Tuck: could not update the menu bar allow list: \(error)")
@@ -363,30 +371,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// `MenuBarAgent` stops hearing about allow-list writes once the user's
-    /// `cfprefsd` has been killed: the write lands and the bar does not move.
-    /// A restarted agent reloads the list, so a write the bar ignored gets one.
-    private func scheduleAgentCheck() {
-        agentCheckTimer?.invalidate()
-        guard AXIsProcessTrusted() else { return }
-        agentCheckTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: false) { [weak self] _ in
-            Task { @MainActor in self?.restartAgentIfStale() }
-        }
-    }
-
-    private func restartAgentIfStale() {
-        let hidden = hiddenBundles(in: activePreset)
-        let onBar = Set(AgentBar.items(on: nil).compactMap {
-            NSRunningApplication(processIdentifier: $0.pid)?.bundleIdentifier
-        })
-        let stale: Bool
-        if isPeeking || revealInBar {
-            let running = hidden.filter { !NSRunningApplication.runningApplications(withBundleIdentifier: $0).isEmpty }
-            stale = !running.isEmpty && onBar.isDisjoint(with: running)
-        } else {
-            stale = !onBar.isDisjoint(with: hidden)
-        }
-        guard stale, let agent = AgentBar.agent else { return }
-        NSLog("Tuck: the menu bar ignored an allow-list write; restarting MenuBarAgent")
+    /// `cfprefsd` has been replaced: the write lands and the bar does not
+    /// move. A restarted agent reloads the list from the file, so the bar
+    /// comes back matching the last write.
+    private func restartAgentIfDeaf() {
+        guard AgentBar.isActive, AgentBar.isDeaf, let agent = AgentBar.agent else { return }
+        NSLog("Tuck: MenuBarAgent predates the preferences daemon; restarting it")
         kill(agent.processIdentifier, SIGTERM)
     }
 
@@ -401,9 +391,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         chevron?.setExpanded(peeking)
-        toggleItem.button?.toolTip = peeking
-            ? "Tuck — click to hide menu bar icons"
-            : "Tuck — click to see hidden menu bar icons"
+        // A waiting update keeps the tooltip.
+        if stagedUpdate == nil {
+            toggleItem.button?.toolTip = peeking
+                ? "Tuck — click to hide menu bar icons"
+                : "Tuck — click to see hidden menu bar icons"
+        }
         toggleItem.button?.setAccessibilityValue(peeking ? "Expanded" : "Collapsed")
         if peeking { schedulePeekEnd(after: peekInterval) }
     }

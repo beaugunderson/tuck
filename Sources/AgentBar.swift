@@ -28,6 +28,23 @@ enum AgentBar {
     /// Whether this Mac lays its menu bar out through `MenuBarAgent`.
     static let isActive = ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 27 && agent != nil
 
+    // MARK: Hearing preference changes
+    //
+    // The agent learns of an allow-list write from the user's `cfprefsd`. When
+    // that daemon is killed and replaced, the agent keeps running and hears
+    // nothing more, so an agent older than the daemon is deaf.
+
+    static func isDeaf(agentStart: Date, daemonStart: Date?) -> Bool {
+        guard let daemonStart else { return false }
+        return agentStart < daemonStart
+    }
+
+    static var isDeaf: Bool {
+        guard let agent, let agentStart = Processes.start(of: agent.processIdentifier) else { return false }
+        let daemonStart = Processes.pids(named: "cfprefsd").compactMap(Processes.start(of:)).max()
+        return isDeaf(agentStart: agentStart, daemonStart: daemonStart)
+    }
+
     private static func values(_ element: AXUIElement, _ attributes: [String]) -> [Any?] {
         var out: CFArray?
         guard
@@ -86,5 +103,37 @@ enum AgentBar {
         var pid: pid_t = 0
         AXUIElementGetPid(element, &pid)
         return AgentItem(frame: frame, pid: pid, title: found[3] as? String ?? "")
+    }
+}
+
+/// The kernel's process table, for this user's processes.
+enum Processes {
+    private static let stride = MemoryLayout<kinfo_proc>.stride
+
+    static func start(of pid: pid_t) -> Date? {
+        var info = kinfo_proc()
+        var size = stride
+        var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, pid]
+        guard sysctl(&mib, 4, &info, &size, nil, 0) == 0, size == stride else { return nil }
+        let time = info.kp_proc.p_starttime
+        return Date(timeIntervalSince1970: Double(time.tv_sec) + Double(time.tv_usec) / 1_000_000)
+    }
+
+    /// Pids of this user's processes whose executable has the given name.
+    static func pids(named name: String) -> [pid_t] {
+        var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_UID, Int32(getuid())]
+        var size = 0
+        guard sysctl(&mib, 4, nil, &size, nil, 0) == 0 else { return [] }
+        // Room for processes that start between the two calls.
+        var list = [kinfo_proc](repeating: kinfo_proc(), count: size / stride + 16)
+        size = list.count * stride
+        guard sysctl(&mib, 4, &list, &size, nil, 0) == 0 else { return [] }
+        return list.prefix(size / stride).compactMap { process in
+            var command = process.kp_proc.p_comm
+            let matches = withUnsafeBytes(of: &command) { bytes in
+                String(decoding: bytes.prefix { $0 != 0 }, as: UTF8.self) == name
+            }
+            return matches ? process.kp_proc.p_pid : nil
+        }
     }
 }
