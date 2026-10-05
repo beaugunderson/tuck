@@ -26,6 +26,14 @@ These require a running, signed Tuck app. Do not reset a user's TCC grants just 
 - Dock or undock to a screen of another width: that screen's preset applies, and an app hidden only on the other screen returns.
 - With Screen Recording denied, nothing prompts for it.
 
+## Updates
+
+- With an older release installed, choose Check for Updates…: expect "Tuck X is ready" with Restart Now / Later. Later leaves "Restart to Update to Tuck X" in the right-click menu and a tooltip on the chevron.
+- Restart Now (or the menu item): Tuck relaunches as the new version with its permissions intact, and on macOS 27 the hidden icons stay hidden through the restart.
+- On the latest release, Check for Updates… reports "Tuck is up to date".
+- Turn on Check for Updates Automatically with an older release installed: within a few seconds the menu offers the update, with no alert. Turned off, Tuck makes no network requests.
+- With the network blocked (Little Snitch deny), a manual check reports the failure and points at tuck.bar; an automatic one stays silent.
+
 ## Appearance
 
 - Light system mode + blue/dark menu bar + white glyphs: open the strip. Its background should match the local menu bar tint and the glyphs should remain readable.

@@ -81,6 +81,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var peekTimer: Timer?
     private let peekInterval: TimeInterval = 10
     private var agentCheckTimer: Timer?
+    private let autoUpdateKey = "checkForUpdatesAutomatically"
+    private var updateTimer: Timer?
+    private var isCheckingForUpdates = false
+    /// A downloaded, verified release waiting for a restart.
+    private var stagedUpdate: (version: String, bundle: URL)?
+    private var isRestarting = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         toggleItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -130,12 +136,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if !AgentBar.isActive, !Bridging.screenRecordingGranted() {
             Bridging.requestScreenRecording()
         }
+        if defaults.bool(forKey: autoUpdateKey) { scheduleUpdateCheck(after: 15) }
     }
 
     /// Hidden apps have no icon to click while Tuck is gone, so quitting
     /// switches them all back on.
     func applicationWillTerminate(_ notification: Notification) {
-        guard AgentBar.isActive else { return }
+        // A restart hands the switches to the instance that is already running.
+        guard AgentBar.isActive, !isRestarting else { return }
         try? AllowList.apply(Dictionary(uniqueKeysWithValues: managedBundles().map { ($0, true) }))
     }
 
@@ -567,6 +575,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         add(menu, "Show All", #selector(toggleReveal), state: revealInBar ? .on : .off)
         add(menu, "Launch at Login", #selector(toggleLaunchAtLogin), state: SMAppService.mainApp.status == .enabled ? .on : .off)
         menu.addItem(.separator())
+        if let stagedUpdate {
+            add(menu, "Restart to Update to Tuck \(stagedUpdate.version)", #selector(installUpdate))
+        } else {
+            add(menu, "Check for Updates…", #selector(checkForUpdatesNow))
+        }
+        add(menu, "Check for Updates Automatically", #selector(toggleAutoUpdate), state: defaults.bool(forKey: autoUpdateKey) ? .on : .off)
+        menu.addItem(.separator())
         add(menu, "How to Hide an Icon…", #selector(showHelp))
         if !AgentBar.isActive { add(menu, "Icon Capture Help…", #selector(showScreenRecordingHelp)) }
         add(menu, "Restart Tuck…", #selector(confirmRestart))
@@ -775,6 +790,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration) { app, error in
             Task { @MainActor in
                 if app != nil {
+                    self.isRestarting = true
                     NSApp.terminate(nil)
                 } else {
                     let alert = NSAlert()
@@ -783,6 +799,91 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     alert.runModal()
                 }
             }
+        }
+    }
+
+    // MARK: - Updates (opt-in)
+    //
+    // A check asks `Updater` for the latest release and, when it is newer than
+    // this build, downloads and verifies it. The result waits in the options
+    // menu as "Restart to Update"; nothing is installed until that is chosen.
+
+    private var currentVersion: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
+    }
+
+    @objc private func toggleAutoUpdate() {
+        let enabled = !defaults.bool(forKey: autoUpdateKey)
+        defaults.set(enabled, forKey: autoUpdateKey)
+        updateTimer?.invalidate()
+        updateTimer = nil
+        if enabled { scheduleUpdateCheck(after: 1) }
+    }
+
+    /// A one-shot timer; each automatic check schedules the next, a day later.
+    private func scheduleUpdateCheck(after interval: TimeInterval) {
+        updateTimer?.invalidate()
+        updateTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: false) { [weak self] _ in
+            Task { @MainActor in
+                guard let self, self.defaults.bool(forKey: self.autoUpdateKey) else { return }
+                await self.checkForUpdates(manual: false)
+                self.scheduleUpdateCheck(after: 24 * 60 * 60)
+            }
+        }
+    }
+
+    @objc private func checkForUpdatesNow() {
+        Task { await checkForUpdates(manual: true) }
+    }
+
+    private func checkForUpdates(manual: Bool) async {
+        guard stagedUpdate == nil, !isCheckingForUpdates else { return }
+        isCheckingForUpdates = true
+        defer { isCheckingForUpdates = false }
+        do {
+            let latest = try await Updater.latest()
+            guard Updater.isNewer(latest.version, than: currentVersion) else {
+                if manual { updateAlert("Tuck is up to date", "Version \(currentVersion) is the latest release.") }
+                return
+            }
+            let bundle = try await Updater.stage(version: latest.version, from: latest.url, replacing: Bundle.main.bundleURL)
+            stagedUpdate = (latest.version, bundle)
+            toggleItem.button?.toolTip = "Tuck — version \(latest.version) is ready; right-click to restart into it"
+            if manual { offerStagedUpdate() }
+        } catch {
+            NSLog("Tuck: update check failed: \(error)")
+            if manual { updateAlert("Tuck couldn’t check for updates", "\(error.localizedDescription)\n\nYou can download the latest version from tuck.bar.") }
+        }
+    }
+
+    private func updateAlert(_ message: String, _ detail: String) {
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.messageText = message
+        alert.informativeText = detail
+        alert.runModal()
+    }
+
+    private func offerStagedUpdate() {
+        guard let stagedUpdate else { return }
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.messageText = "Tuck \(stagedUpdate.version) is ready"
+        alert.informativeText = "You have \(currentVersion). Restart Tuck to finish updating, or do it later from the right-click menu."
+        alert.addButton(withTitle: "Restart Now")
+        alert.addButton(withTitle: "Later")
+        if alert.runModal() == .alertFirstButtonReturn { installUpdate() }
+    }
+
+    @objc private func installUpdate() {
+        guard let stagedUpdate else { return }
+        do {
+            try Updater.install(stagedUpdate.bundle, over: Bundle.main.bundleURL)
+            self.stagedUpdate = nil
+            restart()
+        } catch {
+            NSLog("Tuck: update install failed: \(error)")
+            updateAlert("Tuck couldn’t install the update", "\(error.localizedDescription)\n\nYou can download version \(stagedUpdate.version) from tuck.bar.")
         }
     }
 
