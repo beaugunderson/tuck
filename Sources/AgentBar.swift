@@ -45,6 +45,26 @@ enum AgentBar {
         return isDeaf(agentStart: agentStart, daemonStart: daemonStart)
     }
 
+    // An agent can also stop hearing with neither process restarted, which no
+    // start time shows; the bar itself is the evidence then.
+
+    /// The apps whose icons contradict their switches: a switched-off app with
+    /// an icon on the bar, or a switched-on, running app that has had an icon
+    /// (`known`) and has none.
+    static func mismatched(switches: [String: Bool], onBar: Set<String>, running: Set<String>, known: Set<String>) -> Set<String> {
+        Set(switches.compactMap { bundle, allowed in
+            let wrong = allowed
+                ? running.contains(bundle) && known.contains(bundle) && !onBar.contains(bundle)
+                : onBar.contains(bundle)
+            return wrong ? bundle : nil
+        })
+    }
+
+    /// The apps with a status item on any display's bar.
+    static func bundlesOnBar() -> Set<String> {
+        Set(items(on: nil).compactMap { NSRunningApplication(processIdentifier: $0.pid)?.bundleIdentifier })
+    }
+
     private static func values(_ element: AXUIElement, _ attributes: [String]) -> [Any?] {
         var out: CFArray?
         guard
@@ -104,6 +124,12 @@ enum AgentBar {
         AXUIElementGetPid(element, &pid)
         return AgentItem(frame: frame, pid: pid, title: found[3] as? String ?? "")
     }
+}
+
+extension Logger {
+    /// In the system log, where a restart of the agent can be found afterwards:
+    /// `log show --predicate 'subsystem == "com.beau.tuck"'`.
+    static let agentBar = Logger(category: "AgentBar")
 }
 
 /// The kernel's process table, for this user's processes.

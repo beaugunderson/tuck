@@ -80,6 +80,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var isPeeking = false
     private var peekTimer: Timer?
     private let peekInterval: TimeInterval = 10
+    /// macOS 27: the look at the bar that follows an allow-list write.
+    private var outcomeTimer: Timer?
+    /// How long `MenuBarAgent` takes to apply a write it heard.
+    private let outcomeSettle: TimeInterval = 3
+    /// How long a started agent, or a launched app, takes to put its icons up.
+    private let agentSettle: TimeInterval = 60
+    /// How long a restarted agent takes to redraw the bar.
+    private let restartSettle: TimeInterval = 8
+    /// Switched-on apps that were missing when the agent was last restarted,
+    /// until the next look says whether the restart brought them back.
+    private var restartSuspects: Set<String>?
+    private let appsWithIconsKey = "appsWithIcons"
     private let autoUpdateKey = "checkForUpdatesAutomatically"
     private let askedAboutUpdatesKey = "askedAboutUpdates"
     private var updateTimer: Timer?
@@ -354,18 +366,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @discardableResult
     private func applyHidden() -> Bool {
         let hidden = hiddenBundles(in: activePreset)
-        let hide = (isPeeking || revealInBar) ? [] : hidden
-        let changes = Dictionary(uniqueKeysWithValues: managedBundles().map { ($0, !hide.contains($0)) })
         do {
             // Before any switch flips, so icons that come back land together
             // on the left instead of in among the always-shown ones.
             try ItemOrder.group(hiddenOwners: itemOwners(of: hidden))
-            try AllowList.apply(changes)
+            try AllowList.apply(wantedSwitches())
             // After the write: `defaults` has started the daemon if none was running.
             restartAgentIfDeaf()
+            scheduleOutcomeCheck(after: outcomeSettle)
             return true
         } catch {
-            NSLog("Tuck: could not update the menu bar allow list: \(error)")
+            Logger.agentBar.error("could not update the menu bar allow list: \(error)")
             return false
         }
     }
@@ -376,8 +387,74 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// comes back matching the last write.
     private func restartAgentIfDeaf() {
         guard AgentBar.isActive, AgentBar.isDeaf, let agent = AgentBar.agent else { return }
-        NSLog("Tuck: MenuBarAgent predates the preferences daemon; restarting it")
+        Logger.agentBar.warning("MenuBarAgent predates the preferences daemon; restarting it")
         kill(agent.processIdentifier, SIGTERM)
+    }
+
+    /// Each managed app's switch as it should be now: off for the active
+    /// preset's hidden apps, on while peeking or showing all.
+    private func wantedSwitches() -> [String: Bool] {
+        let hide = (isPeeking || revealInBar) ? [] : hiddenBundles(in: activePreset)
+        return Dictionary(uniqueKeysWithValues: managedBundles().map { ($0, !hide.contains($0)) })
+    }
+
+    /// The apps Tuck has seen with an icon on the bar: the ones a switched-on
+    /// app's missing icon counts as evidence for.
+    private var appsWithIcons: Set<String> {
+        get { Set(defaults.stringArray(forKey: appsWithIconsKey) ?? []) }
+        set { defaults.set(newValue.sorted(), forKey: appsWithIconsKey) }
+    }
+
+    /// One look at the bar once the last write has had time to apply. Every
+    /// write restarts the wait, so the look judges the state the clicks ended on.
+    private func scheduleOutcomeCheck(after interval: TimeInterval) {
+        outcomeTimer?.invalidate()
+        outcomeTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: false) { [weak self] _ in
+            Task { @MainActor in self?.checkOutcome() }
+        }
+    }
+
+    /// Restarts `MenuBarAgent` when the bar contradicts the switches: the
+    /// agent did not hear the write, and a restarted agent reloads the list.
+    private func checkOutcome() {
+        outcomeTimer = nil
+        guard
+            AgentBar.isActive, AXIsProcessTrusted(), let agent = AgentBar.agent,
+            let agentStart = Processes.start(of: agent.processIdentifier)
+        else { return }
+        let onBar = AgentBar.bundlesOnBar()
+        var known = appsWithIcons.union(onBar)
+        defer { if known != appsWithIcons { appsWithIcons = known } }
+        let switches = wantedSwitches()
+
+        // A restarted agent has loaded the list, so a switched-on app still
+        // missing from its bar has no icon to show.
+        if let suspects = restartSuspects {
+            restartSuspects = nil
+            known.subtract(suspects.filter { switches[$0] == true && !onBar.contains($0) })
+            return
+        }
+        // An agent this young is still laying out its bar, and heard the list at launch.
+        let age = Date().timeIntervalSince(agentStart)
+        guard age >= agentSettle else { scheduleOutcomeCheck(after: agentSettle - age + 1); return }
+
+        // An app that has just launched may not have made its icon yet.
+        let running = Set(switches.keys.filter { bundle in
+            NSRunningApplication.runningApplications(withBundleIdentifier: bundle).contains { app in
+                Processes.start(of: app.processIdentifier).map { Date().timeIntervalSince($0) >= agentSettle } ?? false
+            }
+        })
+        let wrong = AgentBar.mismatched(switches: switches, onBar: onBar, running: running, known: known)
+        guard !wrong.isEmpty else { return }
+        Logger.agentBar.warning("the menu bar does not match the allow list for \(wrong.sorted()); restarting MenuBarAgent")
+        restartSuspects = wrong.filter { switches[$0] == true }
+        kill(agent.processIdentifier, SIGTERM)
+        // The bar redraws for a few seconds; a peek lasts past the second look.
+        if isPeeking {
+            peekTimer?.invalidate()
+            schedulePeekEnd(after: restartSettle + peekInterval)
+        }
+        scheduleOutcomeCheck(after: restartSettle)
     }
 
     private func setPeeking(_ peeking: Bool) {

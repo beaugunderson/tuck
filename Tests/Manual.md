@@ -19,6 +19,8 @@ These require a running, signed Tuck app. Do not reset a user's TCC grants just 
 - Untick an app with several icons (SwiftBar): all of them hide together.
 - After a restart of the Mac, wait a minute and left-click the chevron: the hidden icons appear at once. `ps -o lstart= -p "$(pgrep -x MenuBarAgent)"` should be later than the user's `cfprefsd`, about 30 seconds after Tuck launched if login killed the daemon.
 - With `MenuBarAgent` older than the user's `cfprefsd` (the state a killed daemon leaves), left-click the chevron: the bar redraws once and comes back with the hidden icons showing.
+- With `MenuBarAgent` newer than `cfprefsd` and ignoring writes (no `Notifying observers` line for `group.com.apple.controlcenter` in `log stream --level debug --predicate 'process == "cfprefsd"'`), left-click the chevron: nothing appears for 3 seconds, then the bar redraws once with the hidden icons showing, and they stay for at least 10 seconds.
+- Left-click the chevron twice with the bar working: `pgrep -x MenuBarAgent` prints the same pid before and after.
 - Hide an app whose icon sits between two always-shown icons, then left-click the chevron: it comes back left of every always-shown icon, and the hidden apps keep their order among themselves.
 - Left-click the chevron: every hidden app's icons return and are clickable. Click again: they hide. Leave it open with the pointer away from the menu bar: it closes after about ten seconds, and not while the pointer is in the menu bar or a menu is open.
 - Hide an app, quit it, relaunch it: it stays hidden with no action from Tuck.
