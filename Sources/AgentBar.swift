@@ -60,6 +60,35 @@ enum AgentBar {
         })
     }
 
+    /// How much longer the agent needs to apply the last write before the bar
+    /// can be judged; zero once `settle` has passed. A look can come due late
+    /// (timers wait while a menu is open) and land just after a newer write.
+    static func settleRemaining(lastWrite: Date?, now: Date, settle: TimeInterval) -> TimeInterval {
+        guard let lastWrite else { return 0 }
+        return max(0, settle - now.timeIntervalSince(lastWrite))
+    }
+
+    /// Whether a display is the 1920x1080 one the Window Server puts up while
+    /// no monitor is connected (vendor "unkn", model "virt"). Nobody sees its bar.
+    static func isStandIn(vendor: UInt32, model: UInt32) -> Bool {
+        vendor == 0x756e_6b6e && model == 0x7669_7274
+    }
+
+    /// Whether the agent's bar windows can be read for items. Under the screen
+    /// saver or the lock screen its window is 0 by 0 and lists no status
+    /// items, which says nothing about which apps have icons.
+    static func isReadable(windowFrames: [CGRect]) -> Bool {
+        windowFrames.contains { $0.width > 0 && $0.height > 0 }
+    }
+
+    static var isReadable: Bool {
+        guard let agent else { return false }
+        let app = AXUIElementCreateApplication(agent.processIdentifier)
+        AXUIElementSetMessagingTimeout(app, 0.25)
+        let windows = values(app, [kAXWindowsAttribute])[0] as? [AXUIElement] ?? []
+        return isReadable(windowFrames: windows.compactMap { rect(values($0, ["AXFrame"])[0]) })
+    }
+
     /// The apps with a status item on any display's bar.
     static func bundlesOnBar() -> Set<String> {
         Set(items(on: nil).compactMap { NSRunningApplication(processIdentifier: $0.pid)?.bundleIdentifier })

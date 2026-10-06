@@ -27,6 +27,24 @@ struct AgentBarTests {
         check(wrong(onBar: [], known: ["hidden.app"]).isEmpty, "A switched-on app never seen on the bar is not expected there")
         check(wrong(onBar: ["shown.app", "other.app"]).isEmpty, "An app with no switch is ignored")
 
+        func remaining(_ sinceWrite: TimeInterval) -> TimeInterval {
+            AgentBar.settleRemaining(lastWrite: earlier, now: earlier.addingTimeInterval(sinceWrite), settle: 3)
+        }
+        check(remaining(0.015) > 2.9, "A look 15ms after a write waits out the rest of the settle")
+        check(remaining(3) == 0, "A look a full settle after the write goes ahead")
+        check(remaining(40) == 0, "A long-settled write needs no wait")
+        check(AgentBar.settleRemaining(lastWrite: nil, now: earlier, settle: 3) == 0, "No write yet needs no wait")
+
+        let bar = CGRect(x: 0, y: 0, width: 3008, height: 30)
+        check(AgentBar.isReadable(windowFrames: [bar]), "A bar window with a size can be read")
+        check(!AgentBar.isReadable(windowFrames: [.zero]), "The 0 by 0 window under the screen saver cannot be read")
+        check(!AgentBar.isReadable(windowFrames: []), "No bar window cannot be read")
+        check(AgentBar.isReadable(windowFrames: [.zero, bar]), "One sized bar window is enough")
+
+        check(AgentBar.isStandIn(vendor: 0x756e_6b6e, model: 0x7669_7274), "The display made when no monitor is connected is a stand-in")
+        check(!AgentBar.isStandIn(vendor: 0x6b3, model: 0x32f2), "A real monitor is not a stand-in")
+        check(!AgentBar.isStandIn(vendor: 0x756e_6b6e, model: 0x32f2), "An unknown vendor alone is not a stand-in")
+
         let own = Processes.start(of: getpid())
         check(own != nil && abs(own!.timeIntervalSinceNow) < 60, "Reads this process's start time")
         check(Processes.start(of: 0x7fff_fff0) == nil, "A pid that does not exist has no start time")

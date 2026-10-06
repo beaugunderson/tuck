@@ -82,6 +82,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let peekInterval: TimeInterval = 10
     /// macOS 27: the look at the bar that follows an allow-list write.
     private var outcomeTimer: Timer?
+    /// macOS 27: when the allow list was last applied.
+    private var lastWrite: Date?
     /// How long `MenuBarAgent` takes to apply a write it heard.
     private let outcomeSettle: TimeInterval = 3
     /// How long a started agent, or a launched app, takes to put its icons up.
@@ -217,9 +219,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// in points plus a notch marker: two monitors of the same width share a
     /// preset, and the notched laptop bar (two ~770pt strips) never masquerades
     /// as a 1728pt external display. Falls back to the last key when no screen
-    /// is attached (e.g. mid-dock).
+    /// is attached (e.g. mid-dock), or only the stand-in for a monitor that is
+    /// switched off.
     private func screenKey() -> String {
         guard let screen = menuBarScreen() else { return activeKey }
+        if !activeKey.isEmpty,
+           let display = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID,
+           AgentBar.isStandIn(vendor: CGDisplayVendorNumber(display), model: CGDisplayModelNumber(display)) {
+            return activeKey
+        }
         let width = Int(screen.frame.width.rounded())
         let notch = screen.auxiliaryTopLeftArea != nil ? "n" : ""
         return "\(width)\(notch)"
@@ -371,6 +379,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // on the left instead of in among the always-shown ones.
             try ItemOrder.group(hiddenOwners: itemOwners(of: hidden))
             try AllowList.apply(wantedSwitches())
+            lastWrite = Date()
             // After the write: `defaults` has started the daemon if none was running.
             restartAgentIfDeaf()
             scheduleOutcomeCheck(after: outcomeSettle)
@@ -418,10 +427,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// agent did not hear the write, and a restarted agent reloads the list.
     private func checkOutcome() {
         outcomeTimer = nil
+        let wait = AgentBar.settleRemaining(lastWrite: lastWrite, now: Date(), settle: outcomeSettle)
+        guard wait == 0 else { scheduleOutcomeCheck(after: wait); return }
         guard
             AgentBar.isActive, AXIsProcessTrusted(), let agent = AgentBar.agent,
             let agentStart = Processes.start(of: agent.processIdentifier)
         else { return }
+        // Under the screen saver or the lock screen there is no bar to judge.
+        guard AgentBar.isReadable else { restartSuspects = nil; return }
         let onBar = AgentBar.bundlesOnBar()
         var known = appsWithIcons.union(onBar)
         defer { if known != appsWithIcons { appsWithIcons = known } }
